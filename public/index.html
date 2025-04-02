@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>報帳系統</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 在<head>中引入 SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <!-- 登入表單 -->
+    <div id="login-form" style="">
+        <h3>登入</h3>
+        <input type="text" id="login-username" placeholder="使用者名稱">
+        <input type="password" id="login-password" placeholder="密碼">
+        <button onclick="login()">登入</button>
+    </div>
+    <!-- 註冊區塊 -->
+    <div id="register-section" style="">
+        <h3>註冊</h3>
+        <input type="text" id="register-username" placeholder="使用者名稱">
+        <input type="password" id="register-password" placeholder="密碼">
+        <input type="email" id="register-email" placeholder="Email">
+        <input type="Bank" id="register-bank" placeholder="銀行">
+        <input type="Bankaccount" id="register-bank-account" placeholder="收款帳號">
+        <!-- 新增角色選擇欄位 -->
+        <select id="register-role">
+            <option value="user">一般使用者</option>
+            <option value="finance">財務人員</option>
+        </select>
+        <button onclick="register()">註冊</button>
+    </div>
+    <!-- 功能選擇 -->
+    <div id="function-section" style="display: none;">
+        <!-- 新增用戶資料顯示區塊 -->
+        <div id="user-info">
+            <h4>用戶資料</h4>
+            <div id="user-details">
+                <p><strong>用戶名稱：</strong> <span id="info-username"></span></p>
+                <p><strong>角色：</strong> <span id="info-role"></span></p>
+                <p><strong>Email：</strong> <span id="info-email"></span></p>
+                <p><strong>銀行：</strong> <span id="info-bank"></span></p>
+                <p><strong>帳號：</strong> <span id="info-bank-account"></span></p>
+            </div>
+            <button onclick="openEditProfileModal()">修改資料</button>
+        </div>
+        <button class="function-button" onclick="logout()">登出</button>
+        <button class="function-button" onclick="purchase()">採購需求</button>
+        <button class="function-button" onclick="invoice()">發票報帳</button>
+        <button class="function-button" onclick="approve()">財務審核</button>
+    </div>
+    <!-- 採購須知系統 -->
+    <div id="notation" style="display:none;">
+        <section>
+            <p>
+                採購標準流程：
+                <ol>
+                    <li>於採購前填寫採購需求申請表單（此表單），填寫項目名稱及預估價格。若一次購買多個項目，請每個項目個填寫一次表單。</li>
+                    <li>財務將依據購買金額進行審核，審核過後即可採購（因為不會每天都查看試算表查看更新，所以購買較高金額的物品時請主動私訊財務進行審核）</li>
+                    <li>採購時請注意發票需有以下內容：
+                        <ul>採購案件之買受人請載明為「國立陽明交通大學」，統一編號「87557573」，參考連結</ul>
+                        <ul>買受人（請在發票後方用鉛筆簽名）</ul>
+                        <ul>日期</ul>
+                        <ul>品項（若店家允許，請店家在明細中列出所有項目，避免只寫「電子材料」或「五金材料」。若店家提供之發票品項為電子材料/五金材料，在背面用鉛筆備註購買明細。）</ul>
+                        <ul>合計金額</ul>
+                        <ul>收據專用印章（內容不得塗改過）</ul>
+                    </li>
+                    <li>將發票放到車隊白板上的袋子裡，同時填寫報帳發票上傳表單（一張發票填寫一次表單即可）</li>
+                    <li>待學校核銷後會將款項匯回</li>
+            </p>
+            <input type="checkbox" id="noted">
+            <label for="agree">我同意條款</label>
+            <button onclick="handleNotationAcceptance()">下一頁</button>
+        </section>
+    </div>
+    <!-- 採購申請系統 -->
+    <div id="purchase-sys" style="display:none;">
+        <br>
+        <button onclick="openPurchaseModal()" class="purchase-sys-btn add-purchase-btn">新增採購申請</button>
+        <button onclick="openEditModal()" class="purchase-sys-btn edit-purchase-btn">修改採購申請</button>
+        <button onclick="exportToExcel()" class="purchase-sys-btn export-excel-btn">匯出 Excel</button>
+
+        <!-- 新增採購彈窗 -->
+        <div id="purchase-modal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closePurchaseModal()">&times;</span>
+                <h3>新增採購申請</h3>
+                <div class="form-group">
+                    <label for="team">組別：</label>
+                    <select id="team">
+                        <option value="車架">車架</option>
+                        <option value="空力">空力</option>
+                        <option value="懸吊">懸吊</option>
+                        <option value="傳動">傳動</option>
+                        <option value="電力系統">電力系統</option>
+                        <option value="軟體">軟體</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="purchase-desc">品名：</label>
+                    <input type="text" id="purchase-desc">
+                </div>
+                <div class="form-group">
+                    <label for="system-type">系統類別：</label>
+                    <select id="system-type">
+                        <option value="Frame & Body 車架">1. Frame & Body 車架</option>
+                        <option value="Miscellaneous, Fit & Finish 車輛塗裝">2. Miscellaneous, Fit & Finish 車輛塗裝</option>
+                        <option value="Brake System 煞車系統">3. Brake System 煞車系統</option>
+                        <option value="Suspension & Shocks 懸吊系統">4. Suspension & Shocks 懸吊系統</option>
+                        <option value="Steering System 轉向系統">5. Steering System 轉向系統</option>
+                        <option value="Wheels & Tires 輪胎">6. Wheels & Tires 輪胎</option>
+                        <option value="Engine & Drivetrain 電池與引擎系統">7. Engine & Drivetrain 電池與引擎系統</option>
+                        <option value="Instruments & Wiring 通訊、感測器及電力系統">8. Instruments & Wiring 通訊、感測器及電力系統</option>
+                        <option value="行政組用">9. 行政組用</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="use">用途類別：</label>
+                    <select id="use">
+                        <option value="Material Cost 材料主體">Material Cost 材料主體 ex.鋁板、鋼棒</option>
+                        <option value="Process Cost 加工製程">Process Cost 加工製程 ex.委託加工費、運費</option>
+                        <option value="Fastener Cost 緊固件">Fastener Cost 緊固件 ex.螺絲、螺帽</option>
+                        <option value="Tooling Cost 模具及工裝">Tooling Cost 模具及工裝 ex.加工工具</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">預計數量（請標註規格）* 預計單價（按照官網售價）：</label>
+                    <input type="text" id="amount">
+                </div>
+                <div class="form-group">
+                    <label for="total-cost">預計總價（預計數量*預計單價）：</label>
+                    <input type="number" id="total-cost">
+                </div>
+                <div class="form-group">
+                    <label for="import">進口物品</label>
+                    <select id="import">
+                        <option value="Yes">是</option>
+                        <option value="No">否</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="purchase-note">備註：</label>
+                    <input type="text" id="purchase-note" placeholder="">
+                </div>
+                <button onclick="submitPurchase()">提交申請</button>
+            </div>
+        </div>
+
+        <!-- 修改採購彈窗 -->
+        <div id="edit-modal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeEditModal()">&times;</span>
+                <h3>修改採購申請</h3>
+                <div class="form-group">
+                    <label for="edit-serial">選擇要修改的申請編號：</label>
+                    <select id="edit-serial"></select>
+                </div>
+                <div id="edit-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="edit-team">組別：</label>
+                        <select id="edit-team">
+                            <option value="車架">車架</option>
+                            <option value="空力">空力</option>
+                            <option value="懸吊">懸吊</option>
+                            <option value="傳動">傳動</option>
+                            <option value="電力系統">電力系統</option>
+                            <option value="軟體">軟體</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-purchase-desc">品名：</label>
+                        <input type="text" id="edit-purchase-desc" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-system-type">系統類別：</label>
+                        <select id="edit-system-type" required>
+                            <option value="Frame & Body 車架">1. Frame & Body 車架</option>
+                            <option value="Miscellaneous, Fit & Finish 車輛塗裝">2. Miscellaneous, Fit & Finish 車輛塗裝</option>
+                            <option value="Brake System 煞車系統">3. Brake System 煞車系統</option>
+                            <option value="Suspension & Shocks 懸吊系統">4. Suspension & Shocks 懸吊系統</option>
+                            <option value="Steering System 轉向系統">5. Steering System 轉向系統</option>
+                            <option value="Wheels & Tires 輪胎">6. Wheels & Tires 輪胎</option>
+                            <option value="Engine & Drivetrain 電池與引擎系統">7. Engine & Drivetrain 電池與引擎系統</option>
+                            <option value="Instruments & Wiring 通訊、感測器及電力系統">8. Instruments & Wiring 通訊、感測器及電力系統</option>
+                            <option value="行政組用">9. 行政組用</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-use">用途類別：</label>
+                        <select id="edit-use" required>
+                            <option value="Material Cost 材料主體">Material Cost 材料主體 ex.鋁板、鋼棒</option>
+                            <option value="Process Cost 加工製程">Process Cost 加工製程 ex.委託加工費、運費</option>
+                            <option value="Fastener Cost 緊固件">Fastener Cost 緊固件 ex.螺絲、螺帽</option>
+                            <option value="Tooling Cost 模具及工裝">Tooling Cost 模具及工裝 ex.加工工具</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-amount">預計數量（請標註規格）* 預計單價（按照官網售價）：</label>
+                        <input type="text" id="edit-amount" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-total-cost">預計總價（預計數量 * 預計單價）：</label>
+                        <input type="number" id="edit-total-cost" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-import">進口物品：</label>
+                        <select id="edit-import" required>
+                            <option value="是">是</option>
+                            <option value="否">否</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-purchase-note">備註：</label>
+                        <textarea id="edit-purchase-note"></textarea>
+                    </div>
+                    <button onclick="submitEdit()">提交修改</button>
+                </div>
+            </div>
+        </div>
+
+        <h3>申請記錄</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>操作</th>
+                        <th>申請編號</th>
+                        <th>申請時間</th>
+                        <th>申請人</th>
+                        <th>組別</th>
+                        <th>品名</th>
+                        <th>系統類別</th>
+                        <th>用途類別</th>
+                        <th>預計數量（請標註規格）* 預計單價（按照官網售價）</th>
+                        <th>預計總價（預計數量 * 預計單價）</th>
+                        <th>進口物品</th>
+                        <th>備註</th>
+                        <th>狀態</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-list-purchase"></tbody>
+            </table>
+        </div>
+    </div>
+    <!-- 發票上傳系統 -->
+    <div id="invoice-sys" style="display:none;">
+        <h3>上傳發票</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>申請編號</th>
+                        <th>採購時間</th>
+                        <th>申請時間</th>
+                        <th>申請人</th>
+                        <th>組別</th>
+                        <th>品名</th>
+                        <th>系統類別</th>
+                        <th>用途類別</th>
+                        <th>預計數量（請標註規格）* 預計單價（按照官網售價）</th>
+                        <th>預計總價（預計數量 * 預計單價）</th>
+                        <th>進口物品</th>
+                        <th>備註</th>
+                        <th>狀態</th>
+                        <th>實際金額</th>
+                        <th>發票上傳</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-list-invoice"></tbody>
+            </table>
+        </div>
+        <button onclick="exportToExcel()">匯出 Excel</button>
+    </div>
+    <!-- 審核與匯款 -->
+    <div class="approve-sys" id="approve-sys" style="display: none;">
+        <div class="tab-buttons">
+            <button class="function-button" onclick="showTab('purchase-approval')">採購審核</button>
+            <button class="function-button" onclick="showTab('member-approval')">成員審核</button>
+            <button class="function-button" onclick="showTab('user-list')">用戶列表</button>
+            <button class="function-button" onclick="openReimbursementModal()" class="reimbursement-btn">學校報帳</button>
+        </div>
+        <div id="purchase-approval" class="tab-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>操作</th>
+                        <th>序號</th>
+                        <th>採購日期</th>
+                        <th>建立時間</th>
+                        <th>申請人</th>
+                        <th>團隊</th>
+                        <th>採購說明</th>
+                        <th>系統類型</th>
+                        <th>用途</th>
+                        <th>數量</th>
+                        <th>總金額</th>
+                        <th>是否進口</th>
+                        <th>備註</th>
+                        <th>狀態</th>
+                        <th>發票照片</th>
+                        <th>實際金額</th>
+                        <th>學校報帳編號</th>
+                        <th>學校報帳狀態</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-list-approve"></tbody>
+            </table>
+        </div>
+        <!-- 成員審核區塊 -->
+        <div id="member-approval" class="tab-content" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>使用者名稱</th>
+                        <th>Email</th>
+                        <th>銀行</th>
+                        <th>帳號</th>
+                        <th>註冊時間</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="pending-members-list"></tbody>
+            </table>
+        </div>
+
+        <!-- 用戶列表區塊 -->
+        <div id="user-list" class="tab-content" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>使用者名稱</th>
+                        <th>Email</th>
+                        <th>銀行</th>
+                        <th>帳號</th>
+                        <th>角色</th>
+                        <th>狀態</th>
+                        <th>註冊時間</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="users-list"></tbody>
+            </table>
+        </div>
+    </div>
+    <!-- 新增修改個人資料的彈窗 -->
+    <div id="edit-profile-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditProfileModal()">&times;</span>
+            <h3>修改個人資料</h3>
+            <div class="form-group">
+                <label for="edit-profile-email">Email：</label>
+                <input type="email" id="edit-profile-email">
+            </div>
+            <div class="form-group">
+                <label for="edit-profile-bank">銀行：</label>
+                <input type="text" id="edit-profile-bank">
+            </div>
+            <div class="form-group">
+                <label for="edit-profile-bank-account">帳號：</label>
+                <input type="text" id="edit-profile-bank-account">
+            </div>
+            <div class="form-group">
+                <label for="edit-profile-password">新密碼（若不修改請留空）：</label>
+                <input type="password" id="edit-profile-password">
+            </div>
+            <button onclick="submitProfileEdit()">提交修改</button>
+        </div>
+    </div>
+    <!-- 新增學校報帳的 Modal -->
+    <div id="reimbursement-modal" class="modal">
+        <div class="modal-content">
+            <h2>學校報帳</h2>
+            <div class="form-group">
+                <label for="reimbursement-id">學校報帳編號：</label>
+                <input type="text" id="reimbursement-id" required>
+            </div>
+            <div class="selected-records">
+                <h3>已選擇的記錄：</h3>
+                <ul id="selected-records-list"></ul>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="submitReimbursement()">確認報帳</button>
+                <button onclick="closeReimbursementModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
