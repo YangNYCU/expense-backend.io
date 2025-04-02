@@ -6,9 +6,17 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
+const cloudinary = require('cloudinary').v2;
 const app = express();
 const port = 5001;
 const secretKey = 'your_secret_key'; // 請用環境變數
+
+// Cloudinary 配置
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // 建立 PostgreSQL 連線池
 const pool = new Pool({
@@ -79,27 +87,8 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Multer 設定，用於處理檔案上傳
-const storage = multer.diskStorage({
-    destination: function(req, file, cb) {
-        const serial_number = req.params.serial_number;
-        if (!serial_number) {
-            return cb(new Error('未提供序號'), null);
-        }
-        const targetDir = path.join(__dirname, 'uploads', serial_number);
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-        cb(null, targetDir);
-    },
-    filename: function(req, file, cb) {
-        // 加入時間戳記和原始檔名，避免檔名衝突
-        const timestamp = Date.now();
-        const originalName = file.originalname;
-        cb(null, `${timestamp}-${originalName}`);
-    }
-});
-
+// 修改 Multer 設定為記憶體存儲
+const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
     limits: {
@@ -282,27 +271,14 @@ app.put('/api/purchase/:id/approve', authenticateToken, async(req, res) => {
     }
 });
 
-// 【上傳發票】POST /api/invoice/upload
+// 【上傳發票】POST /api/invoice/upload/:serial_number
 app.post("/api/invoice/upload/:serial_number", authenticateToken, async(req, res) => {
     try {
-        // 先確保有檔案上傳
-        const upload = multer({
-            storage: storage,
-            limits: {
-                fileSize: 5 * 1024 * 1024,
-                files: 10
-            },
-            fileFilter: function(req, file, cb) {
-                if (!file.mimetype.startsWith('image/')) {
-                    return cb(new Error('只允許上傳圖片檔案'));
-                }
-                cb(null, true);
-            }
-        }).array('files', 10);
+        // 使用 multer 處理檔案上傳
+        const uploadMiddleware = upload.array('files', 10);
 
-        // 使用 Promise 包裝 multer 中間件
         await new Promise((resolve, reject) => {
-            upload(req, res, function(err) {
+            uploadMiddleware(req, res, function(err) {
                 if (err) {
                     reject(err);
                 }
@@ -315,9 +291,28 @@ app.post("/api/invoice/upload/:serial_number", authenticateToken, async(req, res
         }
 
         const serialNumber = req.params.serial_number;
-        const uploadedFiles = req.files.map(file => file.filename);
+        const uploadedFiles = [];
 
-        // 更新資料庫中的檔案名稱
+        // 上傳檔案到 Cloudinary
+        for (const file of req.files) {
+            const result = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream({
+                        folder: `expense-backend/${serialNumber}`,
+                        resource_type: 'auto'
+                    },
+                    (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    }
+                );
+
+                uploadStream.end(file.buffer);
+            });
+
+            uploadedFiles.push(result.secure_url);
+        }
+
+        // 更新資料庫中的檔案 URL
         const result = await pool.query(
             `UPDATE purchases 
              SET invoice_files = COALESCE(invoice_files, ARRAY[]::text[]) || $1::text[],
@@ -336,14 +331,6 @@ app.post("/api/invoice/upload/:serial_number", authenticateToken, async(req, res
         });
     } catch (err) {
         console.error('發票上傳失敗：', err);
-        // 刪除已上傳的檔案
-        if (req.files) {
-            req.files.forEach(file => {
-                fs.unlink(file.path, (unlinkErr) => {
-                    if (unlinkErr) console.error('刪除檔案失敗：', unlinkErr);
-                });
-            });
-        }
         res.status(500).json({
             message: '發票上傳失敗',
             error: err.message
@@ -707,19 +694,17 @@ app.put('/api/users/profile', authenticateToken, async(req, res) => {
     }
 });
 
-// 修改刪除發票照片的路由，使用 encodeURIComponent 處理檔案名稱
+// 修改刪除發票照片的路由
 app.delete('/api/invoice/delete/:serial_number/:filename', authenticateToken, async(req, res) => {
     try {
         const { serial_number, filename } = req.params;
         const decodedFilename = decodeURIComponent(filename);
 
-        // 檢查檔案是否存在
-        const filePath = path.join(__dirname, 'uploads', serial_number, decodedFilename);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ message: '找不到檔案' });
-        }
+        // 從 Cloudinary 刪除圖片
+        const publicId = decodedFilename.split('/').pop().split('.')[0];
+        await cloudinary.uploader.destroy(`expense-backend/${serial_number}/${publicId}`);
 
-        // 從資料庫中移除檔案名稱
+        // 從資料庫中移除檔案 URL
         const result = await pool.query(
             `UPDATE purchases 
              SET invoice_files = array_remove(invoice_files, $1)
@@ -730,9 +715,6 @@ app.delete('/api/invoice/delete/:serial_number/:filename', authenticateToken, as
         if (result.rows.length === 0) {
             return res.status(404).json({ message: '找不到對應的採購記錄' });
         }
-
-        // 刪除實際檔案
-        fs.unlinkSync(filePath);
 
         res.json({
             message: '檔案已成功刪除',

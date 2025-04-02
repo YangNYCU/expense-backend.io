@@ -311,9 +311,9 @@ function renderPurchaseData(data, targetId) {
                             ${item.invoice_files && item.invoice_files.length > 0 ? 
                                 item.invoice_files.map(file => `
                                     <div class="image-wrapper">
-                                        <img src="/uploads/${item.serial_number}/${file}" 
+                                        <img src="${file}" 
                                              alt="發票照片" 
-                                             onclick="showFullImage(this.src)"
+                                             onclick="showFullImage('${file}')"
                                              style="max-width: 100px; margin: 5px; cursor: pointer;">
                                         <button class="delete-image-btn" 
                                                 onclick="deleteInvoiceImage('${item.serial_number}', '${file}', this)">
@@ -332,9 +332,9 @@ function renderPurchaseData(data, targetId) {
                 ${item.invoice_files && item.invoice_files.length > 0 ? 
                     `<div class="invoice-images">
                         ${item.invoice_files.map(file => `
-                            <img src="/uploads/${item.serial_number}/${file}" 
+                            <img src="${file}" 
                                  alt="發票照片" 
-                                 onclick="showFullImage(this.src)"
+                                 onclick="showFullImage('${file}')"
                                  style="max-width: 100px; margin: 5px; cursor: pointer;">
                         `).join('')}
                     </div>` : 
