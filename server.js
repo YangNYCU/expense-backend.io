@@ -16,7 +16,10 @@ const pool = new Pool({
     host: 'localhost',
     database: 'yang',
     password: '',
-    port: 5000, // 請確認這個埠號是否正確，預設通常為 5432
+    port: 5000, // PostgreSQL 端口
+    max: 20, // 連接池最大連接數
+    idleTimeoutMillis: 30000, // 連接最大空閒時間
+    connectionTimeoutMillis: 2000, // 連接超時時間
 });
 
 // 初始化資料庫：若不存在則建立資料表

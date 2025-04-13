@@ -73,20 +73,20 @@
             </p>
             <input type="checkbox" id="noted">
             <label for="agree">我同意條款</label>
-            <button onclick="handleNotationAcceptance()">下一頁</button>
+            <button onclick="notationAcceptance()">下一頁</button>
         </section>
     </div>
     <!-- 採購申請系統 -->
     <div id="purchase-sys" style="display:none;">
         <br>
-        <button onclick="openPurchaseModal()" class="purchase-sys-btn add-purchase-btn">新增採購申請</button>
-        <button onclick="openEditModal()" class="purchase-sys-btn edit-purchase-btn">修改採購申請</button>
-        <button onclick="exportToExcel()" class="purchase-sys-btn export-excel-btn">匯出 Excel</button>
+        <button class="purchase-sys-btn add-purchase-btn" onclick="openPurchaseModal()">新增採購申請</button>
+        <button class="purchase-sys-btn edit-purchase-btn" onclick="openEditModal()">修改採購申請</button>
+        <button class="purchase-sys-btn export-excel-btn" onclick="exportExcel()">匯出 Excel</button>
 
         <!-- 新增採購彈窗 -->
         <div id="purchase-modal" class="modal">
             <div class="modal-content">
-                <span class="close" onclick="closePurchaseModal()">&times;</span>
+                <span onclick="closePurchaseModal()" class="close">&times;</span>
                 <h3>新增採購申請</h3>
                 <div class="form-group">
                     <label for="team">組別：</label>
@@ -152,7 +152,7 @@
         <!-- 修改採購彈窗 -->
         <div id="edit-modal" class="modal">
             <div class="modal-content">
-                <span class="close" onclick="closeEditModal()">&times;</span>
+                <span onclick="closeEditModal()" class="close">&times;</span>
                 <h3>修改採購申請</h3>
                 <div class="form-group">
                     <label for="edit-serial">選擇要修改的申請編號：</label>
@@ -216,7 +216,7 @@
                         <label for="edit-purchase-note">備註：</label>
                         <textarea id="edit-purchase-note"></textarea>
                     </div>
-                    <button onclick="submitEdit()">提交修改</button>
+                    <button>提交修改</button>
                 </div>
             </div>
         </div>
@@ -272,15 +272,15 @@
                 <tbody id="purchase-list-invoice"></tbody>
             </table>
         </div>
-        <button onclick="exportToExcel()">匯出 Excel</button>
+        <button>匯出 Excel</button>
     </div>
     <!-- 審核與匯款 -->
     <div class="approve-sys" id="approve-sys" style="display: none;">
         <div class="tab-buttons">
-            <button class="function-button" onclick="showTab('purchase-approval')">採購審核</button>
-            <button class="function-button" onclick="showTab('member-approval')">成員審核</button>
-            <button class="function-button" onclick="showTab('user-list')">用戶列表</button>
-            <button class="function-button" onclick="openReimbursementModal()" class="reimbursement-btn">學校報帳</button>
+            <button class="function-button purchase-approve-btn" onclick="openPurchaseApproval()">採購審核</button>
+            <button class="function-button member-approve-btn" onclick="openMemberApproval()">成員審核</button>
+            <button class="function-button member-list-btn" onclick="openUserList()">用戶列表</button>
+            <button class="function-button reimbursement-btn" onclick="openReimbursementModal()" class="reimbursement-btn">學校報帳</button>
         </div>
         <div id="purchase-approval" class="tab-content">
             <table>
@@ -348,7 +348,7 @@
     <!-- 新增修改個人資料的彈窗 -->
     <div id="edit-profile-modal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeEditProfileModal()">&times;</span>
+            <span class="close">&times;</span>
             <h3>修改個人資料</h3>
             <div class="form-group">
                 <label for="edit-profile-email">Email：</label>
@@ -366,7 +366,7 @@
                 <label for="edit-profile-password">新密碼（若不修改請留空）：</label>
                 <input type="password" id="edit-profile-password">
             </div>
-            <button onclick="submitProfileEdit()">提交修改</button>
+            <button>提交修改</button>
         </div>
     </div>
     <!-- 新增學校報帳的 Modal -->
@@ -387,7 +387,13 @@
             </div>
         </div>
     </div>
-    <script src="script.js"></script>
+    <script src="js/constent.js"></script>
+    <script src="js/login.js"></script>
+    <script src="js/user.js"></script>
+    <script src="js/renderdata.js"></script>
+    <script src="js/purchase.js"></script>
+    <script src="js/approve.js"></script>
+    <script src="js/script.js"></script>
 </body>
 
 </html>
