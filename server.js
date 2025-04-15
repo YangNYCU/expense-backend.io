@@ -6,17 +6,10 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
-const cloudinary = require('cloudinary').v2;
 const app = express();
 const port = 5001;
 const secretKey = 'your_secret_key'; // 請用環境變數
 
-// Cloudinary 配置
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
 
 // 建立 PostgreSQL 連線池
 const pool = new Pool({
