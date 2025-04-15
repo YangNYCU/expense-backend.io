@@ -68,27 +68,17 @@ th {
     background-color: #f4f4f4;
 }
 
+#pending-list table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
 
 /* 針對 user-list 的表格 */
 
 #user-list table {
     width: 100%;
     border-collapse: collapse;
-}
-
-#user-list th,
-#user-list td {
-    padding: 8px;
-    border: 1px solid #ddd;
-    text-align: left;
-}
-
-#user-list th {
-    background-color: #f5f5f5;
-}
-
-#user-list tr:nth-child(even) {
-    background-color: #f9f9f9;
 }
 
 

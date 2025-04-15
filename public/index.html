@@ -277,9 +277,9 @@
     <!-- 審核與匯款 -->
     <div class="approve-sys" id="approve-sys" style="display: none;">
         <div class="tab-buttons">
-            <button class="function-button purchase-approve-btn" onclick="openPurchaseApproval()">採購審核</button>
-            <button class="function-button member-approve-btn" onclick="openMemberApproval()">成員審核</button>
-            <button class="function-button member-list-btn" onclick="openUserList()">用戶列表</button>
+            <button class="function-button purchase-approve-btn" onclick="showTab('purchase-approval')">採購審核</button>
+            <button class="function-button member-approve-btn" onclick="showTab('pending-list')">成員審核</button>
+            <button class="function-button member-list-btn" onclick="showTab('user-list')">用戶列表</button>
             <button class="function-button reimbursement-btn" onclick="openReimbursementModal()" class="reimbursement-btn">學校報帳</button>
         </div>
         <div id="purchase-approval" class="tab-content">
@@ -310,7 +310,7 @@
             </table>
         </div>
         <!-- 成員審核區塊 -->
-        <div id="member-approval" class="tab-content" style="display: none;">
+        <div id="pending-list" class="tab-content" style="display: none;">
             <table>
                 <thead>
                     <tr>
@@ -322,10 +322,9 @@
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody id="pending-members-list"></tbody>
+                <tbody id="pending-list-body"></tbody>
             </table>
         </div>
-
         <!-- 用戶列表區塊 -->
         <div id="user-list" class="tab-content" style="display: none;">
             <table>
@@ -341,7 +340,7 @@
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody id="users-list"></tbody>
+                <tbody id="users-list-body"></tbody>
             </table>
         </div>
     </div>
@@ -393,7 +392,7 @@
     <script src="js/renderdata.js"></script>
     <script src="js/purchase.js"></script>
     <script src="js/approve.js"></script>
-    <script src="js/script.js"></script>
+    <script src="js/other.js"></script>
 </body>
 
 </html>

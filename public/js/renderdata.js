@@ -143,3 +143,107 @@ function renderPurchaseData(data, targetId) {
         });
     }
 }
+
+// **📌 上傳發票**
+function handleFileUpload(input) {
+    const files = input.files;
+    const serialNumber = input.dataset.serial;
+    const previewContainer = input.nextElementSibling;
+
+    if (!files.length) {
+        alert('請選擇檔案');
+        return;
+    }
+
+    // 保留現有的預覽圖片
+    const existingPreviews = previewContainer.innerHTML;
+
+    // 新增檔案預覽
+    Array.from(files).forEach(file => {
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.createElement('img');
+                preview.src = e.target.result;
+                preview.style.maxWidth = '100px';
+                preview.style.margin = '5px';
+                preview.style.cursor = 'pointer';
+                preview.onclick = () => showFullImage(e.target.result);
+                previewContainer.appendChild(preview);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+        formData.append('files', file);
+    });
+
+    fetch(`${apiUrl}/invoice/upload/${serialNumber}`, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("token")}`
+            },
+            body: formData
+        })
+        .then(res => {
+            if (!res.ok) {
+                // 如果上傳失敗，恢復原有的預覽
+                previewContainer.innerHTML = existingPreviews;
+                throw new Error(`上傳失敗: ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            console.log('上傳成功', data);
+            alert('檔案上傳成功');
+            loadAndRenderData("purchase-list-invoice");
+        })
+        .catch(error => {
+            console.error('上傳失敗：', error);
+            alert(`檔案上傳失敗: ${error.message}`);
+        });
+}
+
+// **📌 更新發票資料**
+function updateInvoiceData(button) {
+    const row = button.closest('tr');
+    const purchaseId = row.getAttribute('data-purchase-id');
+    const purchaseDate = row.querySelector('.purchase-date').value;
+    const actualPrice = row.querySelector('.actual-price').value;
+
+    // 驗證輸入
+    if (!purchaseDate || !actualPrice) {
+        alert('請填寫採購日期和實際金額');
+        return;
+    }
+
+    const data = {
+        purchaseDate: purchaseDate,
+        actualPrice: actualPrice
+    };
+
+    fetch(`${apiUrl}/invoice/update/${purchaseId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(data)
+        })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`更新失敗: ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            alert(data.message);
+            loadAndRenderData("purchase-list-invoice");
+        })
+        .catch(error => {
+            console.error('更新失敗：', error);
+            alert(`更新失敗: ${error.message}`);
+        });
+}
