@@ -161,7 +161,6 @@ function loadUsers() {
                 if (!data.success) {
                     throw new Error(data.message || '載入用戶失敗');
                 }
-
                 const users = data.data;
                 const list = document.getElementById('users-list-body');
                 list.innerHTML = users.map(user => `
@@ -208,11 +207,9 @@ function deleteUser(userId, username) {
     })
     .then(data => {
         alert(data.message);
-        loadUsers(); // 重新載入用戶列表
-        // 如果在用戶列表頁面，也重新載入待審核成員列表
-        if (document.getElementById('pending-members-list').style.display !== 'none') {
-            loadPendingMembers();
-        }
+        loadUsers();
+        // ▲▲ 新寫法：永遠嘗試刷新待審核清單，多一次無傷大雅
+        loadPendingMembers();
     })
     .catch(error => {
         console.error('刪除用戶失敗：', error);

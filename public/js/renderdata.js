@@ -251,3 +251,28 @@ function updateInvoiceData(button) {
             alert(`更新失敗: ${error.message}`);
         });
 }
+// **📌 刪除發票圖片**
+function deleteInvoiceImage(serial, filename, btn) {
+    if (!confirm('確定刪除這張發票嗎？')) return;
+
+    fetch(`${apiUrl}/invoice/delete/${serial}/${encodeURIComponent(filename)}`, {
+        method : 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error(`刪除失敗 (${res.status})`);
+        return res.json();
+    })
+    .then(data => {
+        alert(data.message);
+        // 1) 從畫面即時移除這張小圖
+        const wrapper = btn.closest('.image-wrapper');
+        if (wrapper) wrapper.remove();
+        // 2) 若想全面刷新再加上：
+        // loadAndRenderData('purchase-list-invoice');
+    })
+    .catch(err => {
+        console.error('刪除圖片失敗：', err);
+        alert(`刪除失敗：${err.message}`);
+    });
+}

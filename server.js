@@ -551,23 +551,36 @@ app.get('/api/users', authenticateToken, (req, res) => {
 });
 
 // 【刪除用戶】DELETE /api/users/:id
-app.delete('/api/users/:id', authenticateToken, async(req, res) => {
-
-    const { id } = req.params;
-
+app.delete('/api/users/:id', authenticateToken, (req, res) => {
     try {
-        if (userCheck.rows.length === 0) {
+        // ▲▲ 1. 參數應該是 id，不是 username
+        const userId = parseInt(req.params.id, 10);
+
+        // ▲▲ 2. 找出使用者索引
+        const userIndex = db.users.findIndex(u => u.id === userId);
+        if (userIndex === -1) {
             return res.status(404).json({ message: '找不到該用戶' });
         }
 
-        if (userCheck.rows[0].role === 'finance') {
-            return res.status(403).json({ message: '不能刪除財務人員帳號' });
+        // ▲▲ 3. 禁止刪除財務人員
+        if (db.users[userIndex].role === 'finance') {
+            return res.status(403).json({ message: '無法刪除財務人員帳號' });
         }
 
-        res.json({ message: '用戶已成功刪除' });
+        const username = db.users[userIndex].username; // 待會要用來找採購紀錄
+
+        // ▲▲ 4. 砍掉使用者
+        db.users.splice(userIndex, 1);
+
+        // ▲▲ 5. 連帶移除該使用者的採購資料
+        db.purchases = db.purchases.filter(p => p.username !== username);
+
+        saveData(); // ▲▲ 6. 寫回檔案
+
+        res.json({ message: '用戶與其採購紀錄已成功刪除' });
     } catch (err) {
         console.error('刪除用戶時發生錯誤：', err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        res.status(500).json({ message: '伺服器錯誤' });
     }
 });
 
@@ -645,22 +658,22 @@ app.put('/api/users/profile', authenticateToken, async(req, res) => {
 app.delete('/api/invoice/delete/:serial_number/:filename', authenticateToken, async(req, res) => {
     try {
         const { serial_number, filename } = req.params;
-        const decodedFilename = decodeURIComponent(filename);
+        const decoded = decodeURIComponent(filename);
+        const purchase = db.purchases.find(p => p.serial_number === serial_number);
         // 從資料庫中移除檔案 URL
-        const result = await pool.query(
-            `UPDATE purchases 
-             SET invoice_files = array_remove(invoice_files, $1)
-             WHERE serial_number = $2 
-             RETURNING *`, [decodedFilename, serial_number]
-        );
-
-        if (result.rows.length === 0) {
+        if (!purchase) {
             return res.status(404).json({ message: '找不到對應的採購記錄' });
         }
-
+        const filePath = path.join(UPLOADS_ROOT, serial_number, decoded);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log('已刪除檔案：', filePath);
+        }
+        purchase.invoice_files = (purchase.invoice_files || []).filter(f => f !== decoded);
+        saveData();
         res.json({
             message: '檔案已成功刪除',
-            updatedFiles: result.rows[0].invoice_files
+            updatedFiles: purchase.invoice_files
         });
     } catch (err) {
         console.error('刪除檔案失敗：', err);
