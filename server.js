@@ -5,158 +5,148 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { Pool } = require('pg');
-const cloudinary = require('cloudinary').v2;
 const app = express();
 const port = 5001;
-const secretKey = 'your_secret_key'; // 請用環境變數
+const secretKey = 'your_secret_key';
 
-// Cloudinary 配置
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// 定義資料庫檔案的絕對路徑
+const DB_FILE_PATH = path.join(__dirname, 'database.json');
+const UPLOADS_ROOT = path.join(__dirname, 'uploads');
 
-// 建立 PostgreSQL 連線池
-const pool = new Pool({
-    user: 'yang',
-    host: 'localhost',
-    database: 'yang',
-    password: '',
-    port: 5000, // PostgreSQL 端口
-    max: 20, // 連接池最大連接數
-    idleTimeoutMillis: 30000, // 連接最大空閒時間
-    connectionTimeoutMillis: 2000, // 連接超時時間
-});
+// 內存數據存儲
+const db = {
+    users: [
+        // 添加一個預設管理員帳號
+        {
+            id: 1,
+            username: 'admin',
+            // 密碼為 'admin'，使用 bcrypt 加密
+            password: '$2b$10$8KvHKf.WKgkG5hGWzrVTxOEZ98P.3z6H8P1OUFsXCzF1bHrz3EKVi',
+            role: 'finance',
+            email: 'admin@example.com',
+            status: 'approved',
+            regist_time: new Date().toISOString()
+        }
+    ],
+    purchases: []
+};
 
-// 初始化資料庫：若不存在則建立資料表
-async function initDB() {
+// 資料持久化
+function saveData() {
     try {
-        // 建立 users 資料表
-        await pool.query(`
-        CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL DEFAULT 'user',
-        email VARCHAR(255),
-        bank VARCHAR(255),
-        bank_account VARCHAR(255), 
-        status VARCHAR(50) DEFAULT 'pending',
-        regist_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-        console.log('Users table is ready.');
-
-        // 建立 purchases 資料表
-        await pool.query(`
-      CREATE TABLE IF NOT EXISTS purchases (
-        id SERIAL PRIMARY KEY,
-        team VARCHAR(100),
-        purchase_desc TEXT,
-        system_type VARCHAR(100),
-        "use" VARCHAR(100),
-        amount TEXT,
-        total_cost NUMERIC,
-        purchase_import VARCHAR(10),
-        purchase_note TEXT,
-        status VARCHAR(50) DEFAULT '待審核',
-        username VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        purchase_date TIMESTAMP,
-        actual_price NUMERIC,
-        serial_number VARCHAR(20),
-        invoice_files TEXT[],
-        school_reimbursement_id VARCHAR(50),
-        school_reimbursement_status VARCHAR(50) DEFAULT '未報帳'
-      );
-    `);
-        console.log('Purchases table is ready.');
+        // 使用 sync 版本確保寫入完成
+        fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), 'utf8');
+        console.log('數據已保存到文件:', DB_FILE_PATH);
     } catch (err) {
-        console.error('Error initializing database:', err);
+        console.error('保存數據錯誤:', err);
+        // 添加更多錯誤信息
+        console.error('錯誤詳情:', {
+            path: DB_FILE_PATH,
+            error: err.message,
+            stack: err.stack
+        });
     }
 }
 
-// 提供前端靜態檔案
+// 載入資料
+function loadData() {
+    try {
+        if (fs.existsSync(DB_FILE_PATH)) {
+            const data = fs.readFileSync(DB_FILE_PATH, 'utf8');
+            Object.assign(db, JSON.parse(data));
+            console.log('數據已從文件載入:', DB_FILE_PATH);
+        } else {
+            console.log('數據文件不存在，創建新文件');
+            saveData();
+        }
+    } catch (err) {
+        console.error('載入數據錯誤:', err);
+        // 添加更多錯誤信息
+        console.error('錯誤詳情:', {
+            path: DB_FILE_PATH,
+            error: err.message,
+            stack: err.stack
+        });
+    }
+}
+
+// 中間件設定
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors());
 app.use(express.json());
-
-// 提供上傳檔案的靜態存取
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
 
-// 修改 Multer 設定為記憶體存儲
-const storage = multer.memoryStorage();
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 5 * 1024 * 1024, // 限制檔案大小為 5MB
-        files: 10 // 限制最多 10 個檔案
-    },
-    fileFilter: function(req, file, cb) {
-        // 只允許圖片檔案
-        if (!file.mimetype.startsWith('image/')) {
-            return cb(new Error('只允許上傳圖片檔案'), false);
-        }
-        cb(null, true);
-    }
-});
-
-// JWT 產生器
-function generateToken(user) {
-    return jwt.sign({ username: user.username, role: user.role }, secretKey, { expiresIn: '1h' });
-}
-
-// 驗證 JWT 的中介軟體
+// JWT 驗證中間件
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ message: '存取權杖缺失' });
+
+    if (!token) {
+        return res.status(401).json({ message: '存取權杖缺失' });
+    }
 
     jwt.verify(token, secretKey, (err, user) => {
-        if (err) return res.status(403).json({ message: '無效的存取權杖' });
+        if (err) {
+            return res.status(403).json({ message: '無效的存取權杖' });
+        }
         req.user = user;
         next();
     });
 }
 
-// 【註冊】POST /api/auth/register
+// JWT 產生器
+function generateToken(user) {
+    return jwt.sign({ username: user.username, role: user.role },
+        secretKey, { expiresIn: '1h' }
+    );
+}
+
+// 註冊 API
 app.post('/api/auth/register', async(req, res) => {
     const { username, password, role, email, bank, bank_account } = req.body;
-    try {
-        const userCheck = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-        if (userCheck.rows.length > 0) {
-            return res.status(400).json({ message: '使用者名稱已存在' });
-        }
 
+    // 檢查使用者是否已存在
+    if (db.users.find(u => u.username === username)) {
+        return res.status(400).json({ message: '使用者名稱已存在' });
+    }
+
+    try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const userRole = role && role === 'finance' ? 'finance' : 'user';
 
-        await pool.query(
-            'INSERT INTO users (username, password, role, email, bank, bank_account, status) VALUES ($1, $2, $3, $4, $5, $6, $7)', [username, hashedPassword, userRole, email, bank, bank_account, 'pending']
-        );
+        const newUser = {
+            id: db.users.length + 1,
+            username,
+            password: hashedPassword,
+            role: userRole,
+            email,
+            bank,
+            bank_account,
+            status: 'pending',
+            regist_time: new Date().toISOString()
+        };
+
+        db.users.push(newUser);
+        saveData();
 
         res.json({ message: '註冊成功，請等待審核', role: userRole });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        res.status(500).json({ message: '伺服器錯誤' });
     }
 });
 
-// 【登入】POST /api/auth/login
+// 登入 API
 app.post('/api/auth/login', async(req, res) => {
     const { username, password } = req.body;
+
     try {
-        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-        if (result.rows.length === 0) {
+        // 在內存數據中查找用戶
+        const user = db.users.find(u => u.username === username);
+
+        if (!user) {
             return res.status(400).json({ message: '使用者名稱或密碼錯誤' });
         }
-        const user = result.rows[0];
 
         // 檢查用戶狀態
         if (user.status === 'pending') {
@@ -166,235 +156,203 @@ app.post('/api/auth/login', async(req, res) => {
             return res.status(403).json({ message: '您的註冊申請已被拒絕' });
         }
 
+        // 驗證密碼
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) {
             return res.status(400).json({ message: '使用者名稱或密碼錯誤' });
         }
-        const token = generateToken(user);
-        res.json({ token, role: user.role });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
-    }
-});
 
-// 【提交採購申請】POST /api/purchase
-app.post('/api/purchase', authenticateToken, async(req, res) => {
-    const { team, purchase_desc, system_type, use, amount, total_cost, purchase_import, purchase_note } = req.body;
-    const { username } = req.user; // 從 token 中獲取使用者名稱
-    try {
-        // 開始交易
-        await pool.query('BEGIN');
-        // 取得當前年份
-        const currentYear = new Date().getFullYear();
-        // 取得該年度的最新序號
-        const lastSerialResult = await pool.query(
-            `SELECT serial_number 
-             FROM purchases 
-             WHERE serial_number LIKE $1 
-             ORDER BY serial_number DESC 
-             LIMIT 1`, [`${currentYear}%`]
-        );
-        // 產生新的序號
-        let newSerial;
-        if (lastSerialResult.rows.length === 0) {
-            // 該年度第一筆
-            newSerial = `${currentYear}0001`;
-        } else {
-            // 取得最後一筆序號的數字部分並加1
-            const lastNumber = parseInt(lastSerialResult.rows[0].serial_number.slice(4));
-            newSerial = `${currentYear}${(lastNumber + 1).toString().padStart(4, '0')}`;
-        }
-        // 建立資料夾
-        const purchaseDir = path.join(__dirname, 'uploads', newSerial);
-        try {
-            if (!fs.existsSync(purchaseDir)) {
-                fs.mkdirSync(purchaseDir, { recursive: true });
-                console.log(`已建立資料夾：${purchaseDir}`);
-            }
-        } catch (err) {
-            console.error('建立資料夾時發生錯誤：', err);
-            return res.status(500).json({ message: '資料夾建立失敗' });
-        }
-        // 插入新記錄
-        const result = await pool.query(
-            `INSERT INTO purchases (
-                team, purchase_desc, system_type, "use", 
-                amount, total_cost, purchase_import, purchase_note, 
-                status, username, serial_number
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
-            RETURNING *`, [
-                team, purchase_desc, system_type, use,
-                amount, total_cost, purchase_import, purchase_note,
-                '待審核', username, newSerial
-            ]
-        );
-        // 提交交易
-        await pool.query('COMMIT');
+        // 生成 JWT token
+        const token = generateToken(user);
+
+        // 返回成功響應
         res.json({
-            message: '採購申請已提交',
-            purchase: result.rows[0]
+            token,
+            role: user.role,
+            message: '登入成功'
         });
     } catch (err) {
-        // 發生錯誤時回滾交易
-        await pool.query('ROLLBACK');
-        console.error('Error creating purchase:', err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('登入錯誤:', err);
+        res.status(500).json({ message: '伺服器錯誤' });
     }
 });
 
-// 【取得採購紀錄】GET /api/purchase
+// 採購申請 API
+app.post('/api/purchase', authenticateToken, async(req, res) => {
+    try {
+        const { team, purchase_desc, system_type, use, amount, total_cost, purchase_import, purchase_note } = req.body;
+        const { username } = req.user;
+        // 生成序號
+        const currentYear = new Date().getFullYear();
+        const purchases = db.purchases.filter(p => p.serial_number.startsWith(currentYear.toString()));
+        const newSerial = `${currentYear}${(purchases.length + 1).toString().padStart(4, '0')}`;
+        const purchaseDir = path.join(UPLOADS_ROOT, newSerial);
+        if (!fs.existsSync(purchaseDir)) {
+            fs.mkdirSync(purchaseDir, { recursive: true });
+            console.log('已建立發票資料夾：', purchaseDir);
+        }
+
+        // 確保 uploads 目錄存在
+        const newPurchase = {
+            id: db.purchases.length + 1,
+            team,
+            purchase_desc,
+            system_type,
+            use,
+            amount,
+            total_cost,
+            purchase_import,
+            purchase_note,
+            status: '待審核',
+            username,
+            created_at: new Date().toISOString(),
+            purchase_date: new Date().toISOString(),
+            serial_number: newSerial,
+            invoice_files: [],
+            school_reimbursement_status: '未報帳'
+        };
+        db.purchases.push(newPurchase);
+        saveData();
+        res.json({ message: '採購申請已提交', purchase: newPurchase });
+    } catch (err) {
+        console.error('新增採購記錄錯誤:', err);
+        res.status(500).json({ message: '伺服器錯誤' });
+    }
+});
+// 獲取採購列表
 app.get('/api/purchase', authenticateToken, async(req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM purchases ORDER BY serial_number ASC');
-        res.json(result.rows);
+        let purchases = [...db.purchases];
+
+        // 排序
+        purchases.sort((a, b) => b.serial_number.localeCompare(a.serial_number));
+
+        // 如果不是財務人員，只顯示自己的採購記錄
+        if (req.user.role !== 'finance') {
+            purchases = purchases.filter(p => p.username === req.user.username);
+        }
+
+        res.json(purchases);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('獲取採購列表錯誤:', err);
+        res.status(500).json({ message: '伺服器錯誤' });
+    }
+});
+
+// 刪除採購記錄
+app.delete('/api/purchase/:id', authenticateToken, async(req, res) => {
+    try {
+        const { id } = req.params;
+        const purchaseIndex = db.purchases.findIndex(p => p.id === parseInt(id));
+
+        if (purchaseIndex === -1) {
+            return res.status(404).json({ message: '找不到採購記錄' });
+        }
+
+        // 檢查權限
+        if (req.user.role !== 'finance' && db.purchases[purchaseIndex].username !== req.user.username) {
+            return res.status(403).json({ message: '權限不足' });
+        }
+
+        // 刪除採購記錄
+        db.purchases.splice(purchaseIndex, 1);
+        saveData();
+
+        res.json({ message: '採購記錄已刪除' });
+    } catch (err) {
+        console.error('刪除採購記錄錯誤:', err);
+        res.status(500).json({ message: '伺服器錯誤' });
     }
 });
 
 // 【審核採購申請】PUT /api/purchase/:id/approve
 app.put('/api/purchase/:id/approve', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '您沒有審核權限' });
-    }
     const id = req.params.id;
     try {
-        const result = await pool.query(
-            'UPDATE purchases SET status = $1 WHERE id = $2 RETURNING *', ['通過', id]
-        );
-        if (result.rows.length === 0) {
+        const purchase = db.purchases.find(p => p.id === parseInt(id));
+        if (!purchase) {
             return res.status(404).json({ message: '找不到該申請' });
         }
-        res.json({ message: '申請已通過', purchase: result.rows[0] });
+        res.json({ message: '申請已通過', purchase: purchase.rows[0] });
+        saveData();
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: '資料庫錯誤' });
     }
 });
-
-// 【上傳發票】POST /api/invoice/upload/:serial_number
-app.post("/api/invoice/upload/:serial_number", authenticateToken, async(req, res) => {
-    try {
-        // 使用 multer 處理檔案上傳
-        const uploadMiddleware = upload.array('files', 10);
-
-        await new Promise((resolve, reject) => {
-            uploadMiddleware(req, res, function(err) {
-                if (err) {
-                    reject(err);
-                }
-                resolve();
-            });
-        });
-
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: '請選擇檔案' });
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => {
+            const dir = path.join(UPLOADS_ROOT, req.params.serial_number);
+            // 若使用者改了 serial 或手動刪資料夾，也能自動補
+            fs.mkdirSync(dir, { recursive: true });
+            cb(null, dir);
+        },
+        filename: (req, file, cb) => {
+            // 時間戳避免重名
+            cb(null, Date.now() + path.extname(file.originalname));
         }
-
-        const serialNumber = req.params.serial_number;
-        const uploadedFiles = [];
-
-        // 上傳檔案到 Cloudinary
-        for (const file of req.files) {
-            const result = await new Promise((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream({
-                        folder: `expense-backend/${serialNumber}`,
-                        resource_type: 'auto'
-                    },
-                    (error, result) => {
-                        if (error) reject(error);
-                        else resolve(result);
-                    }
-                );
-
-                uploadStream.end(file.buffer);
-            });
-
-            uploadedFiles.push(result.secure_url);
-        }
-
-        // 更新資料庫中的檔案 URL
-        const result = await pool.query(
-            `UPDATE purchases 
-             SET invoice_files = COALESCE(invoice_files, ARRAY[]::text[]) || $1::text[],
-                 school_reimbursement_status = '1'
-             WHERE serial_number = $2 
-             RETURNING *`, [uploadedFiles, serialNumber]
-        );
-
-        if (result.rows.length === 0) {
-            throw new Error('找不到對應的採購記錄');
-        }
-
-        res.json({
-            message: '發票上傳成功',
-            files: uploadedFiles
-        });
-    } catch (err) {
-        console.error('發票上傳失敗：', err);
-        res.status(500).json({
-            message: '發票上傳失敗',
-            error: err.message
-        });
-    }
+    })
 });
+
+app.post('/api/invoice/upload/:serial_number',
+    authenticateToken,
+    upload.array('files'),
+    (req, res) => {
+        try {
+            const { serial_number } = req.params;
+            const purchase = db.purchases.find(p => p.serial_number === serial_number);
+            if (!purchase) return res.status(404).json({ message: '找不到採購' });
+
+            // 把檔名存到資料庫
+            const filesStored = req.files.map(f => f.filename);
+            purchase.invoice_files = [...(purchase.invoice_files || []), ...filesStored];
+            saveData();
+
+            res.json({ message: '發票上傳成功', files: filesStored });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ message: '上傳失敗' });
+        }
+    });
 
 // 【更新發票資訊】PUT /api/invoice/update/:id
 app.put('/api/invoice/update/:id', authenticateToken, async(req, res) => {
-    try {
-        const id = req.params.id;
-        const { purchaseDate, actualPrice } = req.body;
-
-        // 驗證輸入
-        if (!purchaseDate || !actualPrice) {
-            return res.status(400).json({ message: '請提供採購日期和實際金額' });
-        }
-
-        const result = await pool.query(
-            `UPDATE purchases 
-             SET purchase_date = $1, 
-                 actual_price = $2
-             WHERE id = $3 
-             RETURNING *`, [purchaseDate, actualPrice, id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: '找不到該筆記錄' });
-        }
-
-        res.json({
-            message: '更新成功',
-            purchase: result.rows[0]
-        });
-    } catch (err) {
-        console.error('更新失敗：', err);
-        res.status(500).json({
-            message: '更新失敗',
-            error: err.message
-        });
+    const id = parseInt(req.params.id, 10);
+    const { purchaseDate, actualPrice } = req.body;
+    if (!purchaseDate || !actualPrice) {
+        return res.status(400).json({ message: '請提供採購日期和實際金額' });
     }
+    const purchase = db.purchases.find(p => p.id === id);
+    if (!purchase) {
+        return res.status(404).json({ message: '找不到該筆記錄' });
+    }
+    purchase.purchase_date = purchaseDate;
+    purchase.actual_price = actualPrice;
+    saveData();
+    return res.json({
+        message: '更新成功',
+        purchase
+    });
 });
 
 // 【更新審核狀態】PUT /api/purchase/:id/status
 app.put('/api/purchase/:id/status', authenticateToken, async(req, res) => {
-
-    const id = req.params.id;
+    const purchaseId = parseInt(req.params.id, 10);
     const { status } = req.body;
-
     try {
-        const result = await pool.query(
-            'UPDATE purchases SET status = $1 WHERE id = $2 RETURNING *', [status, id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: '找不到該申請' });
+        // 從記憶體中找到對應採購資料
+        const purchase = db.purchases.find(p => p.id === purchaseId);
+        if (!purchase) {
+            return res.status(404).json({ success: false, message: '找不到該申請' });
         }
-
+        // 更新狀態
+        purchase.status = status;
+        saveData();
         res.json({
+            success: true,
             message: '狀態更新成功',
-            purchase: result.rows[0]
+            purchase
         });
     } catch (err) {
         console.error(err);
@@ -473,123 +431,131 @@ app.post('/api/purchase/update', authenticateToken, async(req, res) => {
     }
 });
 
-// 【刪除採購申請】DELETE /api/purchase/:id
-app.delete('/api/purchase/:id', authenticateToken, async(req, res) => {
-    const id = req.params.id;
-    const { username } = req.user;
-
+// 【審核用戶狀態】PUT /api/users/:userId/approve
+app.put('/api/users/:userId/approve', authenticateToken, async(req, res) => {
     try {
-        // 檢查是否為申請人本人且狀態為待審核
-        const result = await pool.query(
-            'SELECT * FROM purchases WHERE id = $1 AND username = $2', [id, username]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(403).json({ message: "無權限刪除此申請" });
-        }
-
-        const purchase = result.rows[0];
-
-        // 檢查狀態是否為待審核
-        if (purchase.status !== "待審核") {
-            return res.status(400).json({ message: "只能刪除待審核的申請" });
-        }
-
-        // 執行刪除
-        await pool.query('DELETE FROM purchases WHERE id = $1', [id]);
-
-        res.json({ message: "刪除成功" });
-    } catch (error) {
-        console.error('Error deleting purchase:', error);
-        res.status(500).json({ message: "刪除失敗", error: error.message });
-    }
-});
-
-// 【取得待審核成員列表】GET /api/users/pending
-app.get('/api/users/pending', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '無權限查看待審核成員' });
-    }
-
-    try {
-        const result = await pool.query(
-            'SELECT id, username, email, bank, bank_account, regist_time FROM users WHERE status = $1', ['pending']
-        );
-        res.json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
-    }
-});
-
-// 【審核成員】PUT /api/users/:id/approve
-app.put('/api/users/:id/approve', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '無權限審核成員' });
-    }
-
-    const { id } = req.params;
-    const { status } = req.body;
-
-    try {
-        if (status === 'rejected') {
-            // 如果拒絕，直接刪除該用戶資料
-            await pool.query('DELETE FROM users WHERE id = $1', [id]);
-            return res.json({ message: '已拒絕該用戶的註冊申請並刪除資料' });
-        } else {
-            // 如果通過，更新狀態
-            const result = await pool.query(
-                'UPDATE users SET status = $1 WHERE id = $2 RETURNING id, username, email, status', [status, id]
-            );
-
-            if (result.rows.length === 0) {
-                return res.status(404).json({ message: '找不到該成員' });
-            }
-
-            res.json({
-                message: '成員審核完成',
-                user: result.rows[0]
+        if (req.user.role !== 'finance') {
+            return res.status(403).json({
+                success: false,
+                message: '權限不足'
             });
         }
+
+        const userId = parseInt(req.params.userId);
+        const { status } = req.body;
+
+        console.log('正在更新用戶狀態:', {
+            userId,
+            status,
+            currentTime: new Date().toISOString()
+        });
+
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: '無效的狀態值'
+            });
+        }
+
+        const userIndex = db.users.findIndex(u => u.id === userId);
+        if (userIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到用戶'
+            });
+        }
+
+        // 更新狀態
+        db.users[userIndex].status = status;
+
+        // 保存更改並確認
+        console.log('正在保存更改...');
+        saveData();
+
+        // 驗證更改是否已保存
+        const savedData = JSON.parse(fs.readFileSync(DB_FILE_PATH, 'utf8'));
+        const savedUser = savedData.users.find(u => u.id === userId);
+
+        if (savedUser && savedUser.status === status) {
+            console.log('更改已成功保存到文件');
+        } else {
+            console.error('保存可能未成功，檢查文件內容:', {
+                expectedStatus: status,
+                savedStatus: savedUser ? savedUser.status : 'user not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `用戶已${status === 'approved' ? '通過' : '拒絕'}`,
+            data: {
+                id: userId,
+                username: db.users[userIndex].username,
+                status: status
+            }
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('審核用戶錯誤:', err);
+        console.error('錯誤詳情:', {
+            userId: req.params.userId,
+            status: req.body.status,
+            error: err.message,
+            stack: err.stack
+        });
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
     }
 });
 
-// 【取得所有用戶】GET /api/users
-app.get('/api/users', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '無權限查看用戶列表' });
-    }
-
+// 獲取待審核用戶列表
+app.get('/api/users/pending', authenticateToken, (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT id, username, email, bank, bank_account, role, status, regist_time 
-             FROM users 
-             ORDER BY regist_time DESC`
-        );
-        res.json(result.rows);
+        // 過濾待審核用戶
+        const pendingUsers = db.users
+            .filter(user => user.status === 'pending')
+            .map(({ password, ...user }) => user); // 移除密碼欄位
+        res.json({
+            success: true,
+            data: pendingUsers
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('獲取待審核用戶錯誤:', err);
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
+    }
+});
+
+// 獲取所有用戶列表
+app.get('/api/users', authenticateToken, (req, res) => {
+    try {
+        // 回傳不含密碼的用戶列表
+        const users = db.users.map(user => {
+            const { password, ...userWithoutPassword } = user;
+            return userWithoutPassword;
+        });
+        res.json({
+            success: true,
+            data: users
+        });
+    } catch (err) {
+        console.error('獲取用戶列表錯誤:', err);
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
     }
 });
 
 // 【刪除用戶】DELETE /api/users/:id
 app.delete('/api/users/:id', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '無權限刪除用戶' });
-    }
 
     const { id } = req.params;
 
     try {
-        // 檢查用戶是否存在且不是財務人員
-        const userCheck = await pool.query(
-            'SELECT username, role FROM users WHERE id = $1', [id]
-        );
-
         if (userCheck.rows.length === 0) {
             return res.status(404).json({ message: '找不到該用戶' });
         }
@@ -598,12 +564,6 @@ app.delete('/api/users/:id', authenticateToken, async(req, res) => {
             return res.status(403).json({ message: '不能刪除財務人員帳號' });
         }
 
-        // 刪除該用戶的所有相關採購記錄
-        await pool.query('DELETE FROM purchases WHERE username = $1', [userCheck.rows[0].username]);
-
-        // 刪除用戶
-        await pool.query('DELETE FROM users WHERE id = $1', [id]);
-
         res.json({ message: '用戶已成功刪除' });
     } catch (err) {
         console.error('刪除用戶時發生錯誤：', err);
@@ -611,89 +571,73 @@ app.delete('/api/users/:id', authenticateToken, async(req, res) => {
     }
 });
 
-// 【獲取用戶資料】GET /api/users/profile
-app.get('/api/users/profile', authenticateToken, async(req, res) => {
+// 用戶資料相關 API
+app.get('/api/users/profile', authenticateToken, (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT username, role, email, bank, bank_account, status 
-             FROM users 
-             WHERE username = $1`, [req.user.username]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: '找不到用戶資料' });
+        const { username } = req.user;
+        const user = db.users.find(u => u.username === username);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到用戶資料'
+            });
         }
 
-        res.json(result.rows[0]);
+        // 回傳不含密碼的用戶資料
+        const { password, ...userWithoutPassword } = user;
+        res.json({
+            success: true,
+            data: userWithoutPassword
+        });
     } catch (err) {
-        console.error('獲取用戶資料失敗：', err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('獲取用戶資料錯誤:', err);
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
     }
 });
 
-// 【更新用戶資料】PUT /api/users/profile
+// 修改用戶資料
 app.put('/api/users/profile', authenticateToken, async(req, res) => {
     try {
+        const { username } = req.user;
         const { email, bank, bank_account, password } = req.body;
-        const username = req.user.username;
 
-        // 建立更新欄位的物件
-        const updateFields = {};
-        const values = [];
-        let paramCount = 1;
+        const userIndex = db.users.findIndex(u => u.username === username);
+        if (userIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到用戶'
+            });
+        }
 
-        if (email) {
-            updateFields.email = `$${paramCount}`;
-            values.push(email);
-            paramCount++;
-        }
-        if (bank) {
-            updateFields.bank = `$${paramCount}`;
-            values.push(bank);
-            paramCount++;
-        }
-        if (bank_account) {
-            updateFields.bank_account = `$${paramCount}`;
-            values.push(bank_account);
-            paramCount++;
-        }
+        // 更新用戶資料
+        if (email) db.users[userIndex].email = email;
+        if (bank) db.users[userIndex].bank = bank;
+        if (bank_account) db.users[userIndex].bank_account = bank_account;
+
+        // 如果有提供新密碼，則更新密碼
         if (password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            updateFields.password = `$${paramCount}`;
-            values.push(hashedPassword);
-            paramCount++;
+            db.users[userIndex].password = await bcrypt.hash(password, 10);
         }
 
-        // 如果沒有要更新的欄位
-        if (Object.keys(updateFields).length === 0) {
-            return res.status(400).json({ message: '沒有提供要更新的資料' });
-        }
+        // 保存更改
+        saveData();
 
-        // 建立 SQL 更新語句
-        const setClause = Object.entries(updateFields)
-            .map(([key, value]) => `${key} = ${value}`)
-            .join(', ');
-
-        values.push(username);
-        const result = await pool.query(
-            `UPDATE users 
-             SET ${setClause}
-             WHERE username = $${paramCount}
-             RETURNING username, email, bank, bank_account, role`,
-            values
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: '找不到用戶' });
-        }
-
+        // 回傳更新後的用戶資料（不含密碼）
+        const { password: _, ...userWithoutPassword } = db.users[userIndex];
         res.json({
-            message: '資料更新成功',
-            user: result.rows[0]
+            success: true,
+            message: '更新成功',
+            data: userWithoutPassword
         });
     } catch (err) {
-        console.error('更新用戶資料失敗：', err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('更新用戶資料錯誤:', err);
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
     }
 });
 
@@ -702,11 +646,6 @@ app.delete('/api/invoice/delete/:serial_number/:filename', authenticateToken, as
     try {
         const { serial_number, filename } = req.params;
         const decodedFilename = decodeURIComponent(filename);
-
-        // 從 Cloudinary 刪除圖片
-        const publicId = decodedFilename.split('/').pop().split('.')[0];
-        await cloudinary.uploader.destroy(`expense-backend/${serial_number}/${publicId}`);
-
         // 從資料庫中移除檔案 URL
         const result = await pool.query(
             `UPDATE purchases 
@@ -830,9 +769,9 @@ app.put('/api/purchase/:id/reimbursement-status', authenticateToken, async(req, 
     }
 });
 
-// 啟動伺服器之前先初始化資料庫，再啟動伺服器
-initDB().then(() => {
-    app.listen(port, () => {
-        console.log(`伺服器運行中：http://localhost:${port}`);
-    });
+app.listen(port, () => {
+    console.log('伺服器運行在 http://localhost:' + port);
+    console.log(`伺服器運行在 port ${port}`);
+    console.log('數據文件路徑:', DB_FILE_PATH);
+    loadData();
 });

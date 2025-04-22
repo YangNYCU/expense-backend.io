@@ -14,13 +14,13 @@ function loadUserInfo() {
             }
             return res.json();
         })
-        .then(data => {
+        .then(user => {
             // 更新用戶資料顯示
-            document.getElementById("info-username").textContent = data.username;
-            document.getElementById("info-role").textContent = translateRole(data.role);
-            document.getElementById("info-email").textContent = data.email || '未設定';
-            document.getElementById("info-bank").textContent = data.bank || '未設定';
-            document.getElementById("info-bank-account").textContent = data.bank_account || '未設定';
+            document.getElementById("info-username").textContent = user.data.username;
+            document.getElementById("info-role").textContent = translateRole(user.data.role);
+            document.getElementById("info-email").textContent = user.data.email || '未設定';
+            document.getElementById("info-bank").textContent = user.data.bank || '未設定';
+            document.getElementById("info-bank-account").textContent = user.data.bank_account || '未設定';
         })
         .catch(error => {
             console.error('載入用戶資料失敗：', error);
