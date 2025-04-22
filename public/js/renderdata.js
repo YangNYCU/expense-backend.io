@@ -56,13 +56,20 @@ function renderPurchaseData(data, targetId) {
             <td class="purchase-only">${item.status}</td>
             <td class="invoice-only">${item.status}</td>
             <td class="approve-only" data-id="${item.id}">
-                <select onchange="updateApprovalStatus(this)">
+                <select onchange="updateApprovalStatus(this, ${item.id})"
+                data-original-value="${item.status}"
+                value="${item.status}">   
                     <option value="待審核" ${item.status === '待審核' ? 'selected' : ''}>待審核</option>
                     <option value="通過" ${item.status === '通過' ? 'selected' : ''}>通過</option>
                     <option value="未通過" ${item.status === '未通過' ? 'selected' : ''}>未通過</option>
                 </select>
             </td>
-            <td class="invoice-only"><input type="number" class="actual-price" placeholder="${item.actual_price || ''}"></td>
+            <td class="invoice-only">
+                <input type="number" 
+                       class="actual-price" 
+                       value="${item.actual_price || ''}"
+                       placeholder="${item.actual_price || ''}">
+            </td>
             <td class="invoice-only">
                 ${(item.status === '通過') ? 
                     `<div class="invoice-upload-container">
@@ -105,7 +112,7 @@ function renderPurchaseData(data, targetId) {
             <td class="approve-only">${item.actual_price || ''}</td>
             <td class="approve-only">${item.school_reimbursement_id || ''}</td>
             <td class="approve-only">
-                <select onchange="updateReimbursementStatus(this, ${item.id})">
+                <select onchange="updateReimbursementStatus(this, ${item.id}) ">
                     <option value="0" ${(!item.invoice_files || item.invoice_files.length === 0) ? 'selected' : ''}>無發票</option>
                     <option value="1" ${(item.invoice_files && item.invoice_files.length > 0 && (!item.school_reimbursement_status || item.school_reimbursement_status === '1')) ? 'selected' : ''}>未送出</option>
                     <option value="2" ${item.school_reimbursement_status === '2' ? 'selected' : ''}>已送出</option>
@@ -212,18 +219,15 @@ function updateInvoiceData(button) {
     const purchaseId = row.getAttribute('data-purchase-id');
     const purchaseDate = row.querySelector('.purchase-date').value;
     const actualPrice = row.querySelector('.actual-price').value;
-
     // 驗證輸入
-    if (!purchaseDate || !actualPrice) {
-        alert('請填寫採購日期和實際金額');
+    if (!purchaseDate && !actualPrice) {
+        alert('請至少填一項資料');
         return;
     }
-
     const data = {
         purchaseDate: purchaseDate,
         actualPrice: actualPrice
     };
-
     fetch(`${apiUrl}/invoice/update/${purchaseId}`, {
             method: 'PUT',
             headers: {

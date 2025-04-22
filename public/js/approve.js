@@ -32,36 +32,40 @@ function loadApprovals() {
         });
 }
 
-function updateApprovalStatus(selectElement) {
-    const purchaseId = selectElement.closest('td').dataset.id;
+// 更新採購審核狀態
+function updateApprovalStatus(selectElement, purchaseId) {
+    const id = purchaseId ? purchaseId : selectElement.closest('tr').dataset.purchaseId;
     const status = selectElement.value;
-    const token = localStorage.getItem("token");
-
-    fetch(`${apiUrl}/purchase/${purchaseId}/status`, {
+    console.log('正在更新採購狀態:', { id, status });
+    fetch(`${apiUrl}/purchase/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${localStorage.getItem("token")}`
             },
-            body: JSON.stringify({
-                status
-            })
+            body: JSON.stringify({ status })
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.message) {
-                alert('狀態更新成功');
-                loadApprovals();
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(data => {
+                    throw new Error(data.message || '更新失敗');
+                });
             }
+            return res.json();
+        })
+        .then(response => {
+            // 直接跳過 success 檢查（伺服器現在會回 success: true）
+            alert(response.message);
+            // 用正確的函式重新載入：loadApprovals()
+            loadAndRenderData('purchase-list-approve');
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('更新失敗，請稍後再試');
-            // 如果更新失敗，恢復原本的選項
-            loadPurchases();
+            console.error('更新狀態失敗：', error);
+            alert(`更新狀態失敗：${error.message}`);
+            // 重置選擇框到原始值
+            selectElement.value = selectElement.getAttribute('data-original-value');
         });
 }
-
 
 // 載入待審核成員
 function loadPendingMembers() {
@@ -70,8 +74,19 @@ function loadPendingMembers() {
                 "Authorization": `Bearer ${localStorage.getItem("token")}`
             }
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(data => {
+                    throw new Error(data.message || '載入失敗');
+                });
+            }
+            return res.json();
+        })
+        .then(res => {
+            if (!res.success) {
+                throw new Error(res.message || '載入失敗');
+            }
+            const data = res.data;
             const list = document.getElementById('pending-list-body');
             list.innerHTML = data.map(user => `
             <tr>
@@ -81,15 +96,15 @@ function loadPendingMembers() {
                 <td>${user.bank_account || ''}</td>
                 <td>${new Date(user.regist_time).toLocaleString("zh-TW")}</td>
                 <td>
-                    <button onclick="approveMember(${user.id}, 'approved')">通過</button>
-                    <button onclick="approveMember(${user.id}, 'rejected')">拒絕</button>
+                    <button onclick="approveMember(${user.id}, 'approved')" class="approve-btn">通過</button>
+                    <button onclick="approveMember(${user.id}, 'rejected')" class="reject-btn">拒絕</button>
                 </td>
             </tr>
         `).join('');
         })
         .catch(error => {
             console.error('載入待審核成員失敗：', error);
-            alert('載入待審核成員失敗');
+            alert(`載入待審核成員失敗：${error.message}`);
         });
 }
 
@@ -103,28 +118,53 @@ function approveMember(userId, status) {
             },
             body: JSON.stringify({ status })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(data => {
+                    throw new Error(data.message || '審核失敗');
+                });
+            }
+            return res.json();
+        })
         .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || '審核失敗');
+            }
             alert(data.message);
             loadPendingMembers();
+            loadUsers(); // 重新載入用戶列表
         })
         .catch(error => {
             console.error('成員審核失敗：', error);
-            alert('成員審核失敗');
+            alert(`成員審核失敗：${error.message}`);
         });
 }
 
-// 修改載入用戶列表函數
 function loadUsers() {
     fetch(`${apiUrl}/users`, {
+            method: 'GET',
             headers: {
+                'Content-Type': 'application/json',
                 "Authorization": `Bearer ${localStorage.getItem("token")}`
             }
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) {
+                return res.text().then(text => {
+                    console.error('❌ 錯誤回應內容：', text);
+                    throw new Error('伺服器錯誤：' + res.status);
+                });
+            }
+            return res.json();
+        })
         .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || '載入用戶失敗');
+                }
+
+                const users = data.data;
                 const list = document.getElementById('users-list-body');
-                list.innerHTML = data.map(user => `
+                list.innerHTML = users.map(user => `
             <tr>
                 <td>${user.username}</td>
                 <td>${user.email || ''}</td>
@@ -134,19 +174,18 @@ function loadUsers() {
                 <td>${translateStatus(user.status)}</td>
                 <td>${new Date(user.regist_time).toLocaleString("zh-TW")}</td>
                 <td>
-                    ${user.role !== 'finance' ? 
-                        `<button onclick="deleteUser(${user.id}, '${user.username}')" class="delete-btn">刪除</button>` : 
-                        ''}
+                    ${user.role !== 'finance'
+                        ? `<button onclick="deleteUser(${user.id}, '${user.username}')" class="delete-btn">刪除</button>`
+                        : ''}
                 </td>
             </tr>
         `).join('');
     })
     .catch(error => {
         console.error('載入用戶列表失敗：', error);
-        alert('載入用戶列表失敗');
+        alert('載入用戶列表失敗：' + error.message);
     });
 }
-
 // 修改刪除用戶函數
 function deleteUser(userId, username) {
     if (!confirm(`確定要刪除用戶 ${username} 嗎？此操作不可恢復！\n注意：刪除用戶將同時刪除該用戶的所有採購記錄。`)) {
