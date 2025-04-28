@@ -1,4 +1,4 @@
-// 載入並渲染資料
+// 載入資料
 function loadAndRenderData(targetId) {
     fetch(`${apiUrl}/purchase`, {
             headers: {
@@ -55,10 +55,8 @@ function renderPurchaseData(data, targetId) {
             <td>${item.purchase_note}</td>
             <td class="purchase-only">${item.status}</td>
             <td class="invoice-only">${item.status}</td>
-            <td class="approve-only" data-id="${item.id}">
-                <select onchange="updateApprovalStatus(this, ${item.id})"
-                data-original-value="${item.status}"
-                value="${item.status}">   
+            <td class="approve-only" data-id="${item.serial_number}">
+                <select onchange="updateApprovalStatus(this, ${item.serial_number})" >   
                     <option value="待審核" ${item.status === '待審核' ? 'selected' : ''}>待審核</option>
                     <option value="通過" ${item.status === '通過' ? 'selected' : ''}>通過</option>
                     <option value="未通過" ${item.status === '未通過' ? 'selected' : ''}>未通過</option>
@@ -112,13 +110,14 @@ function renderPurchaseData(data, targetId) {
             <td class="approve-only">${item.actual_price || ''}</td>
             <td class="approve-only">${item.school_reimbursement_id || ''}</td>
             <td class="approve-only">
-                <select onchange="updateReimbursementStatus(this, ${item.id}) ">
-                    <option value="0" ${(!item.invoice_files || item.invoice_files.length === 0) ? 'selected' : ''}>無發票</option>
-                    <option value="1" ${(item.invoice_files && item.invoice_files.length > 0 && (!item.school_reimbursement_status || item.school_reimbursement_status === '1')) ? 'selected' : ''}>未送出</option>
-                    <option value="2" ${item.school_reimbursement_status === '2' ? 'selected' : ''}>已送出</option>
-                    <option value="3" ${item.school_reimbursement_status === '3' ? 'selected' : ''}>學校匯款</option>
-                    <option value="4" ${item.school_reimbursement_status === '4' ? 'selected' : ''}>已還款</option>
-                </select>
+                ${(item.status === '學校匯款'||'已還款') ? 
+                    `<span>${item.school_reimbursement_status}</span>`:
+                    `<select onchange="updateReimbursementStatus(this, ${item.serial_number}) ">
+                        <option value="無發票" ${(!item.invoice_files || item.invoice_files.length === 0) ? 'selected' : ''}>無發票</option>
+                        <option value="未送出" ${(item.invoice_files && item.invoice_files.length > 0 && (!item.school_reimbursement_status || item.school_reimbursement_status === '未送出')) ? 'selected' : ''}>未送出</option>
+                        <option value="已送出" ${item.school_reimbursement_status === '已送出' ? 'selected' : ''}>已送出</option>
+                    </select>`
+                }
             </td>
             <td class="invoice-only"><button onclick="updateInvoiceData(this)">更新資料</button></td>
             <td class="purchase-only">

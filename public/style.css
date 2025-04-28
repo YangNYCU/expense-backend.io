@@ -31,6 +31,7 @@ button {
     background-color: blue;
     color: white;
     padding: 10px 20px;
+    margin-top: 5px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -77,6 +78,11 @@ th {
 /* 針對 user-list 的表格 */
 
 #user-list table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#repayment-list table {
     width: 100%;
     border-collapse: collapse;
 }
@@ -287,7 +293,6 @@ th {
 input,
 select {
     padding: 10px;
-    margin: 10px 5px 10px 0;
 }
 
 

@@ -4,12 +4,14 @@ function showTab(tabId) {
         tab.style.display = 'none';
     });
     document.getElementById(tabId).style.display = 'block';
-    if (tabId === 'purchase-approval') {
+    if (tabId === 'purchase-approval-list') {
         loadApprovals();
     } else if (tabId === 'pending-list') {
         loadPendingMembers();
     } else if (tabId === 'user-list') {
         loadUsers();
+    } else if (tabId === 'repayment-list') {
+        loadRepayments();
     }
 }
 
@@ -33,11 +35,11 @@ function loadApprovals() {
 }
 
 // 更新採購審核狀態
-function updateApprovalStatus(selectElement, purchaseId) {
-    const id = purchaseId ? purchaseId : selectElement.closest('tr').dataset.purchaseId;
+function updateApprovalStatus(selectElement, purchaseSerialNumber) {
+    const serial_number = purchaseSerialNumber ? purchaseSerialNumber : selectElement.closest('tr').dataset.purchaseSerialNumber;
     const status = selectElement.value;
-    console.log('正在更新採購狀態:', { id, status });
-    fetch(`${apiUrl}/purchase/${id}/status`, {
+    console.log('正在更新採購狀態:', { serial_number, status });
+    fetch(`${apiUrl}/purchase/${serial_number}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -56,7 +58,6 @@ function updateApprovalStatus(selectElement, purchaseId) {
         .then(response => {
             // 直接跳過 success 檢查（伺服器現在會回 success: true）
             alert(response.message);
-            // 用正確的函式重新載入：loadApprovals()
             loadAndRenderData('purchase-list-approve');
         })
         .catch(error => {
@@ -327,33 +328,102 @@ function submitReimbursement() {
 }
 
 // 新增更新學校報帳狀態的函數
-function updateReimbursementStatus(selectElement, purchaseId) {
+function updateReimbursementStatus(selectElement, serial_number) {
     const status = selectElement.value;
+    const row = selectElement.closest('tr');
+    const repaymentDateInput = row.querySelector('input[type="date"]');
+    const repayment_date = repaymentDateInput.value;
+    fetch(`${apiUrl}/purchase/${serial_number}/reimbursement-status`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({
+            status,
+            repayment_date: repayment_date || undefined
+        })
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => {
+                throw new Error(data.message || `更新失敗: ${res.status}`);
+            });
+        }
+        return res.json();
+    })
+    .then(data => {
+        alert('狀態更新成功');
+        loadAndRenderData("purchase-list-approve");
+    })
+    .catch(error => {
+        console.error('更新狀態失敗：', error);
+        alert(`更新失敗：${error.message}`);
+        loadAndRenderData("purchase-list-approve");
+    });
+}
 
-    fetch(`${apiUrl}/purchase/${purchaseId}/reimbursement-status`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
-            },
-            body: JSON.stringify({
-                status
-            })
-        })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`更新失敗: ${res.status}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            alert('狀態更新成功');
-            loadAndRenderData("purchase-list-approve");
-        })
-        .catch(error => {
-            console.error('更新狀態失敗：', error);
-            alert(`更新失敗：${error.message}`);
-            // 如果更新失敗，重新載入資料
-            loadAndRenderData("purchase-list-approve");
-        });
+function openRepaymentModal() {
+    const modal = document.getElementById("repayment-modal");
+    modal.style.display = "block";
+}
+
+function loadRepayments() {
+    fetch(`${apiUrl}/reimbursements`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem("token")}`
+        }
+    })
+    .then(res => {
+        if (!res.ok) {
+            return res.text().then(text => {
+                console.error('❌ 錯誤回應內容：', text);
+                throw new Error('伺服器錯誤：' + res.status);
+            });
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.message || '載入報帳列表失敗');
+        }
+        const reimbursements = data.data || [];
+        const list = document.getElementById('repayment-list-body');
+        if (!list) {
+            throw new Error('找不到 repayment-list-body 元素');
+        }
+        console.log(reimbursements );
+        // console.log(reimbursements.school_reimbursement_status)
+        list.innerHTML = reimbursements.map(item => `
+            <tr data-purchase-serial-number="${item.serial_number}">
+                <td class="approve-only">${item.serial_number}</td>
+                <td class="approve-only">${new Date(item.purchase_date).toLocaleDateString("zh-TW")}</td>
+                <td class="approve-only">${item.username}</td>
+                <td class="approve-only">${item.email || ''}</td>
+                <td class="approve-only">${item.purchase_desc}</td>
+                <td class="approve-only">${item.actual_price}</td>
+                <td class="approve-only">${item.bank || ''}</td>
+                <td class="approve-only">${item.bank_account || ''}</td>
+                <td class="approve-only">
+                    <select onchange="updateReimbursementStatus(this, '${item.serial_number}')">
+                        <option value="已送出" ${item.school_reimbursement_status == "已送出" ? 'selected' : ''}>已送出</option>
+                        <option value="學校匯款" ${item.school_reimbursement_status == "學校匯款" ? 'selected' : ''}>學校匯款</option>
+                        <option value="已還款" ${item.school_reimbursement_status== "已還款" ? 'selected' : ''}>已還款</option>
+                    </select>
+                </td>
+                <td class="approve-only">
+                    <input type="date" value="${item.repayment_date ? new Date(item.repayment_date).toISOString().split('T')[0] : ''}" 
+                            onchange="updateReimbursementStatus(this.closest('tr').querySelector('select'), '${item.serial_number}')">
+                    </td>
+            </tr>
+        `).join('');
+        console.log(list);
+    })
+    
+    .catch(error => {
+        console.error('載入報帳列表失敗：', error);
+        alert('載入報帳列表失敗：' + error.message);
+    });
 }

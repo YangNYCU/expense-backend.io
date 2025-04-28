@@ -33,11 +33,6 @@ function invoice() {
 
 function approve() {
     const userRole = localStorage.getItem("role");
-    // 檢查是否為財務人員
-    if (userRole !== "finance") {
-        alert("只有財務人員可以使用審核功能");
-        return;
-    }
     // 隱藏所有系統
     ["notation", "purchase-sys", "invoice-sys", "approve-sys"].forEach(id => {
         document.getElementById(id).style.display = "none";
@@ -46,7 +41,7 @@ function approve() {
     document.getElementById("approve-sys").style.display = "block";
     loadAndRenderData("purchase-list-approve");
     // 預設顯示採購審核頁籤
-    showTab('purchase-approval');
+    showTab('purchase-approval-list');
 }
 // **📌 匯出採購資料**
 function exportToExcel() {

@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>報帳系統</title>
     <link rel="stylesheet" href="style.css">
-    <!-- 在<head>中引入 SheetJS -->
 </head>
 
 <body>
@@ -215,7 +214,7 @@
                         <label for="edit-purchase-note">備註：</label>
                         <textarea id="edit-purchase-note"></textarea>
                     </div>
-                    <button>提交修改</button>
+                    <button onclick="submitEdit()">提交修改</button>
                 </div>
             </div>
         </div>
@@ -225,7 +224,6 @@
             <table>
                 <thead>
                     <tr>
-                        <th>操作</th>
                         <th>申請編號</th>
                         <th>申請時間</th>
                         <th>申請人</th>
@@ -238,6 +236,7 @@
                         <th>進口物品</th>
                         <th>備註</th>
                         <th>狀態</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="purchase-list-purchase"></tbody>
@@ -276,12 +275,14 @@
     <!-- 審核與匯款 -->
     <div class="approve-sys" id="approve-sys" style="display: none;">
         <div class="tab-buttons">
-            <button class="function-button purchase-approve-btn" onclick="showTab('purchase-approval')">採購審核</button>
+            <button class="function-button purchase-approve-btn" onclick="showTab('purchase-approval-list')">採購審核</button>
             <button class="function-button member-approve-btn" onclick="showTab('pending-list')">成員審核</button>
             <button class="function-button member-list-btn" onclick="showTab('user-list')">用戶列表</button>
-            <button class="function-button reimbursement-btn" onclick="openReimbursementModal()" class="reimbursement-btn">學校報帳</button>
+            <button class="function-button repayment-btn" onclick="showTab('repayment-list')">車隊還款</button>
+            <button class="function-button reimbursement-btn" onclick="openReimbursementModal()">學校報帳</button>
+
         </div>
-        <div id="purchase-approval" class="tab-content">
+        <div id="purchase-approval-list" class="tab-content">
             <table>
                 <thead>
                     <tr>
@@ -342,6 +343,26 @@
                 <tbody id="users-list-body"></tbody>
             </table>
         </div>
+        <!-- 車隊還款區塊 -->
+        <div id="repayment-list" class="tab-content" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>序號</th>
+                        <th>採購日期</th>
+                        <th>採購人</th>
+                        <th>Email</th>
+                        <th>採購品相</th>
+                        <th>採購金額</th>
+                        <th>銀行</th>
+                        <th>帳號</th>
+                        <th>還款狀態</th>
+                        <th>還款日期</th>
+                    </tr>
+                </thead>
+                <tbody id="repayment-list-body"></tbody>
+            </table>
+        </div>
     </div>
     <!-- 新增修改個人資料的彈窗 -->
     <div id="edit-profile-modal" class="modal">
@@ -364,7 +385,7 @@
                 <label for="edit-profile-password">新密碼（若不修改請留空）：</label>
                 <input type="password" id="edit-profile-password">
             </div>
-            <button>提交修改</button>
+            <button onclick="submitProfileEdit()">提交修改</button>
         </div>
     </div>
     <!-- 新增學校報帳的 Modal -->

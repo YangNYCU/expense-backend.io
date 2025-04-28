@@ -68,18 +68,15 @@ function submitProfileEdit() {
         bank_account: document.getElementById("edit-profile-bank-account").value,
         password: document.getElementById("edit-profile-password").value
     };
-
     // 如果密碼欄位為空，則不更新密碼
     if (!updateData.password) {
         delete updateData.password;
     }
-
     // 檢查是否有任何欄位要更新
     if (!updateData.email && !updateData.bank && !updateData.bank_account && !updateData.password) {
         alert('請至少填寫一個要更新的欄位');
         return;
     }
-
     fetch(`${apiUrl}/users/profile`, {
             method: 'PUT',
             headers: {

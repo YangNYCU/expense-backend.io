@@ -8,7 +8,6 @@ const fs = require('fs');
 const app = express();
 const port = 5001;
 const secretKey = 'your_secret_key';
-
 // 定義資料庫檔案的絕對路徑
 const DB_FILE_PATH = path.join(__dirname, 'database.json');
 const UPLOADS_ROOT = path.join(__dirname, 'uploads');
@@ -28,7 +27,7 @@ const db = {
             regist_time: new Date().toISOString()
         }
     ],
-    purchases: []
+    purchases: [],
 };
 
 // 資料持久化
@@ -182,19 +181,17 @@ app.post('/api/purchase', authenticateToken, async(req, res) => {
     try {
         const { team, purchase_desc, system_type, use, amount, total_cost, purchase_import, purchase_note } = req.body;
         const { username } = req.user;
-        // 生成序號
         const currentYear = new Date().getFullYear();
-        const purchases = db.purchases.filter(p => p.serial_number.startsWith(currentYear.toString()));
-        const newSerial = `${currentYear}${(purchases.length + 1).toString().padStart(4, '0')}`;
+        const newId = Math.max(...db.purchases.map(purchase => purchase.id)) + 1;
+        const newSerial = `${currentYear}${(newId).toString().padStart(4, '0')}`;
         const purchaseDir = path.join(UPLOADS_ROOT, newSerial);
         if (!fs.existsSync(purchaseDir)) {
             fs.mkdirSync(purchaseDir, { recursive: true });
             console.log('已建立發票資料夾：', purchaseDir);
         }
-
         // 確保 uploads 目錄存在
         const newPurchase = {
-            id: db.purchases.length + 1,
+            id: newId,
             team,
             purchase_desc,
             system_type,
@@ -209,7 +206,8 @@ app.post('/api/purchase', authenticateToken, async(req, res) => {
             purchase_date: new Date().toISOString(),
             serial_number: newSerial,
             invoice_files: [],
-            school_reimbursement_status: '未報帳'
+            school_reimbursement_status: '未報帳',
+            repayment_date: new Date().toISOString(),
         };
         db.purchases.push(newPurchase);
         saveData();
@@ -223,18 +221,58 @@ app.post('/api/purchase', authenticateToken, async(req, res) => {
 app.get('/api/purchase', authenticateToken, async(req, res) => {
     try {
         let purchases = [...db.purchases];
-
         // 排序
         purchases.sort((a, b) => b.serial_number.localeCompare(a.serial_number));
-
-        // 如果不是財務人員，只顯示自己的採購記錄
-        if (req.user.role !== 'finance') {
-            purchases = purchases.filter(p => p.username === req.user.username);
-        }
-
         res.json(purchases);
     } catch (err) {
         console.error('獲取採購列表錯誤:', err);
+        res.status(500).json({ message: '伺服器錯誤' });
+    }
+});
+// 更新採購申請（僅限本人或財務，且狀態必須仍為「待審核」）
+app.post('/api/purchase/update', authenticateToken, (req, res) => {
+    try {
+        const {
+            id,
+            team,
+            purchase_desc,
+            system_type,
+            use,
+            amount,
+            total_cost,
+            purchase_import,
+            purchase_note
+        } = req.body;
+        // 1. 取得目標申請
+        const pid = parseInt(id, 10);
+        const purchase = db.purchases.find(p => p.id === pid);
+        if (!purchase) {
+            return res.status(404).json({ message: '找不到該筆申請' });
+        }
+        // 2. 權限檢查
+        if (req.user.role !== 'finance' && purchase.username !== req.user.username) {
+            return res.status(403).json({ message: '無權限修改此申請' });
+        }
+        // 3. 只能修改「待審核」狀態
+        if (purchase.status !== '待審核') {
+            return res.status(400).json({ message: '僅能修改待審核的申請' });
+        }
+        // 4. 更新欄位（如未傳入維持原值）
+        if (team) purchase.team = team;
+        if (purchase_desc) purchase.purchase_desc = purchase_desc;
+        if (system_type) purchase.system_type = system_type;
+        if (use) purchase.use = use;
+        if (amount) purchase.amount = amount;
+        if (total_cost) purchase.total_cost = total_cost;
+        if (purchase_import) purchase.purchase_import = purchase_import;
+        purchase.purchase_note = (purchase_note !== undefined) ? purchase_note : purchase.purchase_note;
+        saveData(); // 寫回 database.json
+        res.json({
+            message: '更新成功',
+            data: purchase
+        });
+    } catch (err) {
+        console.error('更新採購申請錯誤：', err);
         res.status(500).json({ message: '伺服器錯誤' });
     }
 });
@@ -244,20 +282,16 @@ app.delete('/api/purchase/:id', authenticateToken, async(req, res) => {
     try {
         const { id } = req.params;
         const purchaseIndex = db.purchases.findIndex(p => p.id === parseInt(id));
-
         if (purchaseIndex === -1) {
             return res.status(404).json({ message: '找不到採購記錄' });
         }
-
         // 檢查權限
         if (req.user.role !== 'finance' && db.purchases[purchaseIndex].username !== req.user.username) {
             return res.status(403).json({ message: '權限不足' });
         }
-
         // 刪除採購記錄
         db.purchases.splice(purchaseIndex, 1);
         saveData();
-
         res.json({ message: '採購記錄已刪除' });
     } catch (err) {
         console.error('刪除採購記錄錯誤:', err);
@@ -320,7 +354,7 @@ app.post('/api/invoice/upload/:serial_number',
 app.put('/api/invoice/update/:id', authenticateToken, async(req, res) => {
     const id = parseInt(req.params.id, 10);
     const { purchaseDate, actualPrice } = req.body;
-    if (!purchaseDate || !actualPrice) {
+    if (!purchaseDate && !actualPrice) {
         return res.status(400).json({ message: '請提供採購日期和實際金額' });
     }
     const purchase = db.purchases.find(p => p.id === id);
@@ -336,13 +370,13 @@ app.put('/api/invoice/update/:id', authenticateToken, async(req, res) => {
     });
 });
 
-// 【更新審核狀態】PUT /api/purchase/:id/status
-app.put('/api/purchase/:id/status', authenticateToken, async(req, res) => {
-    const purchaseId = parseInt(req.params.id, 10);
+// 【更新審核狀態】PUT /api/purchase/:serial_number/status
+app.put('/api/purchase/:serial_number/status', authenticateToken, async(req, res) => {
+    const purchaseSerialNumber = req.params.serial_number;
     const { status } = req.body;
     try {
         // 從記憶體中找到對應採購資料
-        const purchase = db.purchases.find(p => p.id === purchaseId);
+        const purchase = db.purchases.find(p => p.serial_number === purchaseSerialNumber);
         if (!purchase) {
             return res.status(404).json({ success: false, message: '找不到該申請' });
         }
@@ -357,77 +391,6 @@ app.put('/api/purchase/:id/status', authenticateToken, async(req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: '資料庫錯誤' });
-    }
-});
-
-// 更新採購申請
-app.post('/api/purchase/update', authenticateToken, async(req, res) => {
-    try {
-        const {
-            id,
-            team,
-            purchase_desc,
-            system_type,
-            use,
-            amount,
-            total_cost,
-            purchase_import,
-            purchase_note,
-            status
-        } = req.body;
-
-        // 檢查是否為申請人本人
-        const result = await pool.query(
-            'SELECT * FROM purchases WHERE id = $1 AND username = $2', [id, req.user.username]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(403).json({ message: "無權限修改此申請" });
-        }
-
-        const purchase = result.rows[0];
-
-        // 檢查申請狀態是否為待審核
-        if (purchase.status !== "待審核") {
-            return res.status(400).json({ message: "只能修改待審核的申請" });
-        }
-
-        // 更新資料
-        const updateResult = await pool.query(
-            `UPDATE purchases 
-            SET team = $1, 
-                purchase_desc = $2, 
-                system_type = $3, 
-                "use" = $4, 
-                amount = $5, 
-                total_cost = $6, 
-                purchase_import = $7, 
-                purchase_note = $8
-            WHERE id = $9 AND username = $10
-            RETURNING *`, [
-                team,
-                purchase_desc,
-                system_type,
-                use,
-                amount,
-                total_cost,
-                purchase_import,
-                purchase_note,
-                id,
-                req.user.username
-            ]
-        );
-
-        res.json({
-            message: "更新成功",
-            data: updateResult.rows[0]
-        });
-    } catch (error) {
-        console.error('Error updating purchase:', error);
-        res.status(500).json({
-            message: "更新失敗",
-            error: error.message
-        });
     }
 });
 
@@ -555,28 +518,19 @@ app.delete('/api/users/:id', authenticateToken, (req, res) => {
     try {
         // ▲▲ 1. 參數應該是 id，不是 username
         const userId = parseInt(req.params.id, 10);
-
         // ▲▲ 2. 找出使用者索引
         const userIndex = db.users.findIndex(u => u.id === userId);
         if (userIndex === -1) {
             return res.status(404).json({ message: '找不到該用戶' });
         }
-
         // ▲▲ 3. 禁止刪除財務人員
         if (db.users[userIndex].role === 'finance') {
             return res.status(403).json({ message: '無法刪除財務人員帳號' });
         }
-
         const username = db.users[userIndex].username; // 待會要用來找採購紀錄
-
         // ▲▲ 4. 砍掉使用者
         db.users.splice(userIndex, 1);
-
-        // ▲▲ 5. 連帶移除該使用者的採購資料
-        db.purchases = db.purchases.filter(p => p.username !== username);
-
-        saveData(); // ▲▲ 6. 寫回檔案
-
+        saveData(); // ▲▲ 5. 寫回檔案
         res.json({ message: '用戶與其採購紀錄已成功刪除' });
     } catch (err) {
         console.error('刪除用戶時發生錯誤：', err);
@@ -595,7 +549,6 @@ app.get('/api/users/profile', authenticateToken, (req, res) => {
                 message: '找不到用戶資料'
             });
         }
-
         // 回傳不含密碼的用戶資料
         const { password, ...userWithoutPassword } = user;
         res.json({
@@ -616,7 +569,6 @@ app.put('/api/users/profile', authenticateToken, async(req, res) => {
     try {
         const { username } = req.user;
         const { email, bank, bank_account, password } = req.body;
-
         const userIndex = db.users.findIndex(u => u.username === username);
         if (userIndex === -1) {
             return res.status(404).json({
@@ -624,20 +576,16 @@ app.put('/api/users/profile', authenticateToken, async(req, res) => {
                 message: '找不到用戶'
             });
         }
-
         // 更新用戶資料
         if (email) db.users[userIndex].email = email;
         if (bank) db.users[userIndex].bank = bank;
         if (bank_account) db.users[userIndex].bank_account = bank_account;
-
         // 如果有提供新密碼，則更新密碼
         if (password) {
             db.users[userIndex].password = await bcrypt.hash(password, 10);
         }
-
         // 保存更改
         saveData();
-
         // 回傳更新後的用戶資料（不含密碼）
         const { password: _, ...userWithoutPassword } = db.users[userIndex];
         res.json({
@@ -683,108 +631,93 @@ app.delete('/api/invoice/delete/:serial_number/:filename', authenticateToken, as
 
 // 【更新學校報帳狀態】PUT /api/purchase/reimbursement
 app.put('/api/purchase/reimbursement', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '只有財務人員可以進行學校報帳' });
-    }
-
     const { purchaseIds, reimbursementId } = req.body;
-
-    if (!purchaseIds || !Array.isArray(purchaseIds) || purchaseIds.length === 0 || purchaseIds.length > 5) {
+    if (!Array.isArray(purchaseIds) || purchaseIds.length === 0 || purchaseIds.length > 5) {
         return res.status(400).json({ message: '請選擇1-5筆待報帳的記錄' });
     }
-
     if (!reimbursementId) {
         return res.status(400).json({ message: '請提供學校報帳編號' });
     }
-
-    try {
-        await pool.query('BEGIN');
-
-        // 檢查所有選中的記錄是否都已經通過審核且有發票
-        const checkResult = await pool.query(
-            `SELECT id, serial_number, status, invoice_files 
-             FROM purchases 
-             WHERE id = ANY($1)`, [purchaseIds]
-        );
-
-        for (const record of checkResult.rows) {
-            if (record.status !== '通過') {
-                throw new Error(`序號 ${record.serial_number} 尚未通過審核`);
-            }
-            if (!record.invoice_files || record.invoice_files.length === 0) {
-                throw new Error(`序號 ${record.serial_number} 尚未上傳發票`);
-            }
+    const updated = [];
+    for (const rawId of purchaseIds) {
+        const id = parseInt(rawId, 10);
+        const p = db.purchases.find(x => x.id === id);
+        if (!p) {
+            return res.status(404).json({ message: `找不到 id=${id} 的記錄` });
         }
-
-        // 更新選中的記錄
-        const result = await pool.query(
-            `UPDATE purchases 
-             SET school_reimbursement_id = $1,
-                 school_reimbursement_status = '已報帳'
-             WHERE id = ANY($2)
-             RETURNING *`, [reimbursementId, purchaseIds]
-        );
-
-        await pool.query('COMMIT');
-
-        res.json({
-            message: '學校報帳狀態更新成功',
-            updatedRecords: result.rows
-        });
-    } catch (err) {
-        // 發生錯誤時回滾交易
-        await pool.query('ROLLBACK');
-        console.error('更新學校報帳狀態失敗：', err);
-        res.status(500).json({
-            message: '更新學校報帳狀態失敗',
-            error: err.message
-        });
+        if (p.status !== '通過') {
+            return res.status(400).json({ message: `序號 ${p.serial_number} 尚未通過審核` });
+        }
+        if (!p.invoice_files || p.invoice_files.length === 0) {
+            return res.status(400).json({ message: `序號 ${p.serial_number} 尚未上傳發票` });
+        }
+        // 更新欄位
+        p.school_reimbursement_id = reimbursementId;
+        p.school_reimbursement_status = '已報帳';
+        updated.push(p);
     }
+    saveData();
+    res.json({ message: '報帳狀態更新成功', updatedRecords: updated });
 });
 
-// 【更新學校報帳狀態】PUT /api/purchase/:id/reimbursement-status
-app.put('/api/purchase/:id/reimbursement-status', authenticateToken, async(req, res) => {
-    if (req.user.role !== 'finance') {
-        return res.status(403).json({ message: '只有財務人員可以更新學校報帳狀態' });
-    }
-
-    const id = req.params.id;
-    const { status } = req.body;
-
-    // 驗證狀態值
-    const validStatuses = ['0', '1', '2', '3', '4'];
+// 【更新學校報帳狀態】PUT /api/purchase/:serial_number/reimbursement-status
+app.put('/api/purchase/:serial_number/reimbursement-status', authenticateToken, async(req, res) => {
+    const serial_number = req.params.serial_number;
+    const { status, repayment_date } = req.body;
+    const validStatuses = ['無發票', '未送出', '已送出', '學校匯款', '已還款'];
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ message: '無效的狀態值' });
     }
+    const p = db.purchases.find(x => x.serial_number === serial_number);
+    if (!p) {
+        return res.status(404).json({ message: '找不到該筆記錄' });
+    }
+    p.school_reimbursement_status = status;
+    if (repayment_date) {
+        p.repayment_date = repayment_date;
+    }
+    console.log(p);
+    saveData();
+    res.json({ message: '學校報帳狀態更新成功', purchase: p });
+});
 
+// 【獲取已向學校報帳列表】GET /api/reimbursements
+app.get('/api/reimbursements', authenticateToken, (req, res) => {
     try {
-        // 檢查記錄是否存在
-        const checkResult = await pool.query(
-            'SELECT * FROM purchases WHERE id = $1', [id]
-        );
-
-        if (checkResult.rows.length === 0) {
-            return res.status(404).json({ message: '找不到該筆記錄' });
-        }
-
-        // 更新狀態
-        const result = await pool.query(
-            'UPDATE purchases SET school_reimbursement_status = $1 WHERE id = $2 RETURNING *', [status, id]
-        );
-
+        // 篩選已報帳的採購記錄
+        const reimbursementList = db.purchases
+            .filter(p => p.school_reimbursement_status === '已送出' || '學校匯款' || '已還款')
+            .map(purchase => {
+                // 查找對應的用戶信息
+                const user = db.users.find(u => u.username === purchase.username) || {};
+                return {
+                    serial_number: purchase.serial_number,
+                    purchase_date: purchase.purchase_date,
+                    username: purchase.username,
+                    email: user.email || '',
+                    purchase_desc: purchase.purchase_desc,
+                    actual_price: purchase.actual_price || purchase.total_cost,
+                    bank: user.bank || '',
+                    bank_account: user.bank_account || '',
+                    school_reimbursement_status: purchase.school_reimbursement_status || '',
+                    repayment_date: purchase.repayment_date || ''
+                };
+            });
         res.json({
-            message: '學校報帳狀態更新成功',
-            purchase: result.rows[0]
+            success: true,
+            data: reimbursementList
         });
     } catch (err) {
-        console.error('更新學校報帳狀態失敗：', err);
-        res.status(500).json({ message: '資料庫錯誤' });
+        console.error('獲取報帳列表錯誤:', err);
+        res.status(500).json({
+            success: false,
+            message: '伺服器錯誤'
+        });
     }
 });
 
-app.listen(port, () => {
-    console.log('伺服器運行在 http://localhost:' + port);
-    console.log(`伺服器運行在 port ${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`伺服器運行在 http://0.0.0.0:${port}`);
     console.log('數據文件路徑:', DB_FILE_PATH);
     loadData();
 });
