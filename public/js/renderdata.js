@@ -81,10 +81,12 @@ function renderPurchaseData(data, targetId) {
                                              alt="發票照片" 
                                              onclick="showFullImage(this.src)"
                                              style="max-width: 100px; margin: 5px; cursor: pointer;">
-                                        <button class="delete-image-btn" 
+                                        ${item.username === localStorage.getItem("username") ?
+                                        `<button class="delete-image-btn" 
                                                 onclick="deleteInvoiceImage('${item.serial_number}', '${file}', this)">
                                             ×
-                                        </button>
+                                        </button>`:
+                                        ''}
                                     </div>
                                 `).join('') : 
                                 ''
@@ -251,9 +253,9 @@ function updateInvoiceData(button) {
         });
 }
 // **📌 刪除發票圖片**
-function deleteInvoiceImage(serial, filename, btn) {
+function deleteInvoiceImage(serial, filename,btn) {
+    console.log(serial, filename, username);
     if (!confirm('確定刪除這張發票嗎？')) return;
-
     fetch(`${apiUrl}/invoice/delete/${serial}/${encodeURIComponent(filename)}`, {
         method : 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }

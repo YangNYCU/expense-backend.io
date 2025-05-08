@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>報帳系統</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -46,11 +47,34 @@
             <button onclick="openEditProfileModal()">修改資料</button>
         </div>
         <button class="function-button" onclick="logout()">登出</button>
+        <button class="function-button" onclick="showDashboard()">儀表板</button>
         <button class="function-button" onclick="purchase()">採購需求</button>
         <button class="function-button" onclick="invoice()">發票報帳</button>
         <button class="function-button" onclick="approve()">財務審核</button>
     </div>
-    <!-- 採購須知系統 -->
+    <!-- 儀表板 -->
+    <div id="dashboard-sys" style="display:none;">
+        <h3>儀表板</h3>
+        <div class="dashboard-container">
+            <div class="dashboard-card">
+                <h4>總採購數</h4>
+                <p id="total-purchases">0</p>
+            </div>
+            <div class="dashboard-card">
+                <h4>總採購金額</h4>
+                <p id="total-cost">0</p>
+            </div>
+            <div class="dashboard-card">
+                <h4 onclick="approve()">待審核申請</h4>
+                <p id="pending-approvals">0</p>
+            </div>
+            <div class="dashboard-card">
+                <h4>已報帳金額</h4>
+                <p id="reimbursed-amount">0</p>
+            </div>
+        </div>
+    </div>
+    <!-- 採購須 entren system -->
     <div id="notation" style="display:none;">
         <section>
             <p>
@@ -68,6 +92,7 @@
                     </li>
                     <li>將發票放到車隊白板上的袋子裡，同時填寫報帳發票上傳表單（一張發票填寫一次表單即可）</li>
                     <li>待學校核銷後會將款項匯回</li>
+                </ol>
             </p>
             <input type="checkbox" id="noted">
             <label for="agree">我同意條款</label><br>
@@ -280,7 +305,6 @@
             <button class="function-button member-list-btn" onclick="showTab('user-list')">用戶列表</button>
             <button class="function-button repayment-btn" onclick="showTab('repayment-list')">車隊還款</button>
             <button class="function-button reimbursement-btn" onclick="openReimbursementModal()">學校報帳</button>
-
         </div>
         <div id="purchase-approval-list" class="tab-content">
             <table>
@@ -412,7 +436,40 @@
     <script src="js/renderdata.js"></script>
     <script src="js/purchase.js"></script>
     <script src="js/approve.js"></script>
+    <script src="js/dashboard.js"></script>
     <script src="js/other.js"></script>
+    <script>
+        (function() {
+            function c() {
+                var b = a.contentDocument || a.contentWindow.document;
+                if (b) {
+                    var d = b.createElement('script');
+                    d.innerHTML = "window.__CF$cv$params={r:'93c19d513da7763d',t:'MTc0NjYzMDMxNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";
+                    b.getElementsByTagName('head')[0].appendChild(d)
+                }
+            }
+            if (document.body) {
+                var a = document.createElement('iframe');
+                a.height = 1;
+                a.width = 1;
+                a.style.position = 'absolute';
+                a.style.top = 0;
+                a.style.left = 0;
+                a.style.border = 'none';
+                a.style.visibility = 'hidden';
+                document.body.appendChild(a);
+                if ('loading' !== document.readyState) c();
+                else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c);
+                else {
+                    var e = document.onreadystatechange || function() {};
+                    document.onreadystatechange = function(b) {
+                        e(b);
+                        'loading' !== document.readyState && (document.onreadystatechange = e, c())
+                    }
+                }
+            }
+        })();
+    </script>
 </body>
 
 </html>

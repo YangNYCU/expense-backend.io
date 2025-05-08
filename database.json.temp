@@ -40,7 +40,8 @@
       "purchase_date": "2025-04-22",
       "serial_number": "20250001",
       "invoice_files": [
-        "1745306515265.jpg"
+        "1745306515265.jpg",
+        "1745306531637.jpeg"
       ],
       "school_reimbursement_status": "學校匯款",
       "repayment_date": "2025-04-28",
@@ -63,9 +64,9 @@
       "purchase_date": "2025-04-25",
       "serial_number": "20250005",
       "invoice_files": [
-        "1746628811699.JPEG"
+        "1745558304614.jpeg"
       ],
-      "school_reimbursement_status": "學校匯款",
+      "school_reimbursement_status": "已還款",
       "repayment_date": "2025-04-25",
       "actual_price": "600",
       "school_reimbursement_id": "ARRC 2025-1"
@@ -85,30 +86,13 @@
       "created_at": "2025-04-25T05:36:04.981Z",
       "purchase_date": "2025-04-25",
       "serial_number": "20250006",
-      "invoice_files": [],
+      "invoice_files": [
+        "1745559474150.JPEG"
+      ],
       "school_reimbursement_status": "已還款",
       "repayment_date": "2025-04-25",
       "actual_price": "700",
       "school_reimbursement_id": "專戶 Qxxxxxxxxx"
-    },
-    {
-      "id": 7,
-      "team": "車架",
-      "purchase_desc": "test7",
-      "system_type": "Frame & Body 車架",
-      "use": "Material Cost 材料主體",
-      "amount": "10*70",
-      "total_cost": "700",
-      "purchase_import": "Yes",
-      "purchase_note": "",
-      "status": "待審核",
-      "username": "2",
-      "created_at": "2025-04-29T08:06:15.252Z",
-      "purchase_date": "2025-04-29T08:06:15.252Z",
-      "serial_number": "20250007",
-      "invoice_files": [],
-      "school_reimbursement_status": "未報帳",
-      "repayment_date": "2025-04-29T08:06:15.252Z"
     }
   ],
   "reimbursements": []
