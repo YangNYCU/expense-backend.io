@@ -1,10 +1,12 @@
 // 新增載入用戶資料的函數
 function loadUserInfo() {
-    fetch(`${apiUrl}/users/profile`, {
-            headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-        })
+    const username = localStorage.getItem('username');
+    if (!username) {
+        console.error('未找到用戶名');
+        return;
+    }
+
+    fetch(`${apiUrl}/users/profile/${username}`)
         .then(res => {
             if (!res.ok) {
                 if (res.status === 401 || res.status === 403) {
@@ -34,18 +36,19 @@ function loadUserInfo() {
 // 開啟修改個人資料彈窗
 function openEditProfileModal() {
     const modal = document.getElementById("edit-profile-modal");
+    const username = localStorage.getItem('username');
+    if (!username) {
+        alert('未找到用戶資訊，請重新登入');
+        return;
+    }
 
     // 載入現有資料到表單中
-    fetch(`${apiUrl}/users/profile`, {
-            headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-        })
+    fetch(`${apiUrl}/users/profile/${username}`)
         .then(res => res.json())
         .then(data => {
-            document.getElementById("edit-profile-email").value = data.email || '';
-            document.getElementById("edit-profile-bank").value = data.bank || '';
-            document.getElementById("edit-profile-bank-account").value = data.bank_account || '';
+            document.getElementById("edit-profile-email").value = data.data.email || '';
+            document.getElementById("edit-profile-bank").value = data.data.bank || '';
+            document.getElementById("edit-profile-bank-account").value = data.data.bank_account || '';
         })
         .catch(error => {
             console.error('載入用戶資料失敗：', error);
@@ -62,6 +65,12 @@ function closeEditProfileModal() {
 
 // 提交個人資料修改
 function submitProfileEdit() {
+    const username = localStorage.getItem('username');
+    if (!username) {
+        alert('未找到用戶資訊，請重新登入');
+        return;
+    }
+
     const updateData = {
         email: document.getElementById("edit-profile-email").value,
         bank: document.getElementById("edit-profile-bank").value,
@@ -77,11 +86,10 @@ function submitProfileEdit() {
         alert('請至少填寫一個要更新的欄位');
         return;
     }
-    fetch(`${apiUrl}/users/profile`, {
+    fetch(`${apiUrl}/users/profile/${username}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(updateData)
         })

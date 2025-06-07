@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { authenticateToken } = require('../middleware/auth');
 const { saveData } = require('../utils/db');
 const { UPLOADS_ROOT } = require('../config/config');
 const db = require('../models/database');
@@ -12,10 +11,9 @@ const router = express.Router();
  * 建立採購申請 API
  * 端點：POST /api/purchase
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', async(req, res) => {
     try {
-        const { team, purchase_desc, system_type, use, amount, total_cost, purchase_import, purchase_note } = req.body;
-        const { username } = req.user;
+        const { team, purchase_desc, system_type, use, amount, total_cost, purchase_import, purchase_note, username } = req.body;
         const currentYear = new Date().getFullYear();
         const newId = Math.max(...db.purchases.map(purchase => purchase.id)) + 1;
         const newSerial = `${currentYear}${(newId).toString().padStart(4, '0')}`;
@@ -56,7 +54,7 @@ router.post('/', authenticateToken, async (req, res) => {
  * 獲取採購列表 API
  * 端點：GET /api/purchase
  */
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async(req, res) => {
     try {
         let purchases = [...db.purchases];
         purchases.sort((a, b) => b.serial_number.localeCompare(a.serial_number));
@@ -71,7 +69,7 @@ router.get('/', authenticateToken, async (req, res) => {
  * 更新採購申請 API
  * 端點：POST /api/purchase/update
  */
-router.post('/update', authenticateToken, (req, res) => {
+router.post('/update', (req, res) => {
     try {
         const {
             id,
@@ -89,9 +87,6 @@ router.post('/update', authenticateToken, (req, res) => {
         if (!purchase) {
             return res.status(404).json({ message: '找不到該筆申請' });
         }
-        if (req.user.role !== 'finance' && purchase.username !== req.user.username) {
-            return res.status(403).json({ message: '無權限修改此申請' });
-        }
         if (purchase.status !== '待審核') {
             return res.status(400).json({ message: '僅能修改待審核的申請' });
         }
@@ -100,7 +95,7 @@ router.post('/update', authenticateToken, (req, res) => {
         if (system_type) purchase.system_type = system_type;
         if (use) purchase.use = use;
         if (amount) purchase.amount = amount;
-        if (total_cost) purchase.total_cost = total_cost;
+        if (total_cost !== undefined) purchase.total_cost = total_cost;
         if (purchase_import) purchase.purchase_import = purchase_import;
         purchase.purchase_note = (purchase_note !== undefined) ? purchase_note : purchase.purchase_note;
         saveData(db);
@@ -118,15 +113,12 @@ router.post('/update', authenticateToken, (req, res) => {
  * 刪除採購記錄 API
  * 端點：DELETE /api/purchase/:id
  */
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', async(req, res) => {
     try {
         const { id } = req.params;
         const purchaseIndex = db.purchases.findIndex(p => p.id === parseInt(id));
         if (purchaseIndex === -1) {
             return res.status(404).json({ message: '找不到採購記錄' });
-        }
-        if (req.user.role !== 'finance' && db.purchases[purchaseIndex].username !== req.user.username) {
-            return res.status(403).json({ message: '權限不足' });
         }
         db.purchases.splice(purchaseIndex, 1);
         saveData(db);
@@ -141,7 +133,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  * 審核採購申請 API
  * 端點：PUT /api/purchase/:id/approve
  */
-router.put('/:id/approve', authenticateToken, async (req, res) => {
+router.put('/:id/approve', async(req, res) => {
     const id = req.params.id;
     try {
         const purchase = db.purchases.find(p => p.id === parseInt(id));
@@ -161,7 +153,7 @@ router.put('/:id/approve', authenticateToken, async (req, res) => {
  * 更新審核狀態 API
  * 端點：PUT /api/purchase/:serial_number/status
  */
-router.put('/:serial_number/status', authenticateToken, async (req, res) => {
+router.put('/:serial_number/status', async(req, res) => {
     const purchaseSerialNumber = req.params.serial_number;
     const { status } = req.body;
     try {

@@ -1,5 +1,4 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
 const db = require('../models/database');
 
 const router = express.Router();
@@ -8,7 +7,7 @@ const router = express.Router();
  * 獲取統計數據 API
  * 端點：GET /api/stats
  */
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', (req, res) => {
     try {
         // Calculate statistics
         const totalPurchases = db.purchases.length;

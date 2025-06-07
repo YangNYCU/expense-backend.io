@@ -48,7 +48,7 @@ function exportToExcel() {
     // 先取得採購資料
     fetch(`${apiUrl}/purchase`, {
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+                
             }
         })
         .then(res => res.json())

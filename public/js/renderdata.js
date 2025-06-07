@@ -2,7 +2,7 @@
 function loadAndRenderData(targetId) {
     fetch(`${apiUrl}/purchase`, {
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+                
             }
         })
         .then(res => res.json())
@@ -191,7 +191,7 @@ function handleFileUpload(input) {
     fetch(`${apiUrl}/invoice/upload/${serialNumber}`, {
             method: 'POST',
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+                
             },
             body: formData
         })
@@ -233,7 +233,7 @@ function updateInvoiceData(button) {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                
             },
             body: JSON.stringify(data)
         })
@@ -258,7 +258,7 @@ function deleteInvoiceImage(serial, filename,btn) {
     if (!confirm('確定刪除這張發票嗎？')) return;
     fetch(`${apiUrl}/invoice/delete/${serial}/${encodeURIComponent(filename)}`, {
         method : 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: {  }
     })
     .then(res => {
         if (!res.ok) throw new Error(`刪除失敗 (${res.status})`);

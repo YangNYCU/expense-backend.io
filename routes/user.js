@@ -1,7 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const fs = require('fs');
-const { authenticateToken } = require('../middleware/auth');
 const { saveData } = require('../utils/db');
 const { DB_FILE_PATH } = require('../config/config');
 const db = require('../models/database');
@@ -11,14 +9,8 @@ const router = express.Router();
 
 //審核用戶狀態 API
 //端點：PUT /api/users/:userId/approve
-router.put('/:userId/approve', authenticateToken, async(req, res) => {
+router.put('/:userId/approve', async(req, res) => {
     try {
-        if (req.user.role !== 'finance') {
-            return res.status(403).json({
-                success: false,
-                message: '權限不足'
-            });
-        }
         const userId = parseInt(req.params.userId);
         const { status } = req.body;
         console.log('正在更新用戶狀態:', {
@@ -80,7 +72,7 @@ router.put('/:userId/approve', authenticateToken, async(req, res) => {
 //獲取待審核用戶列表 API
 //端點：GET /api/users/pending
 
-router.get('/pending', authenticateToken, (req, res) => {
+router.get('/pending', (req, res) => {
     try {
         const pendingUsers = db.users
             .filter(user => user.status === 'pending')
@@ -102,7 +94,7 @@ router.get('/pending', authenticateToken, (req, res) => {
 //獲取所有用戶列表 API
 //端點：GET /api/users
 
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', (req, res) => {
     try {
         const users = db.users.map(user => {
             const { password, ...userWithoutPassword } = user;
@@ -125,7 +117,7 @@ router.get('/', authenticateToken, (req, res) => {
 //刪除用戶 API
 //端點：DELETE /api/users/:id
 
-router.delete('/:id', authenticateToken, (req, res) => {
+router.delete('/:id', (req, res) => {
     try {
         const userId = parseInt(req.params.id, 10);
         const userIndex = db.users.findIndex(u => u.id === userId);
@@ -146,11 +138,11 @@ router.delete('/:id', authenticateToken, (req, res) => {
 
 
 //獲取用戶資料 API
-//端點：GET /api/users/profile
+//端點：GET /api/users/profile/:username
 
-router.get('/profile', authenticateToken, (req, res) => {
+router.get('/profile/:username', (req, res) => {
     try {
-        const { username } = req.user;
+        const { username } = req.params;
         const user = db.users.find(u => u.username === username);
         if (!user) {
             return res.status(404).json({
@@ -174,11 +166,11 @@ router.get('/profile', authenticateToken, (req, res) => {
 
 
 //修改用戶資料 API
-//端點：PUT /api/users/profile
+//端點：PUT /api/users/profile/:username
 
-router.put('/profile', authenticateToken, async(req, res) => {
+router.put('/profile/:username', async(req, res) => {
     try {
-        const { username } = req.user;
+        const { username } = req.params;
         const { email, bank, bank_account, password } = req.body;
         const userIndex = db.users.findIndex(u => u.username === username);
         if (userIndex === -1) {
@@ -191,7 +183,7 @@ router.put('/profile', authenticateToken, async(req, res) => {
         if (bank) db.users[userIndex].bank = bank;
         if (bank_account) db.users[userIndex].bank_account = bank_account;
         if (password) {
-            db.users[userIndex].password = await bcrypt.hash(password, 10);
+            db.users[userIndex].password = password;
         }
         saveData(db);
         const { password: _, ...userWithoutPassword } = db.users[userIndex];

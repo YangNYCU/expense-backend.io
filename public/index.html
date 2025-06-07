@@ -124,11 +124,12 @@
                 </div>
                 <div class="form-group">
                     <label for="purchase-desc">品名：</label>
-                    <input type="text" id="purchase-desc">
+                    <input type="text" id="purchase-desc" required>
                 </div>
                 <div class="form-group">
                     <label for="system-type">系統類別：</label>
-                    <select id="system-type">
+                    <select id="system-type" required>
+                        <option value="">請選擇系統類別</option>
                         <option value="Frame & Body 車架">1. Frame & Body 車架</option>
                         <option value="Miscellaneous, Fit & Finish 車輛塗裝">2. Miscellaneous, Fit & Finish 車輛塗裝</option>
                         <option value="Brake System 煞車系統">3. Brake System 煞車系統</option>
@@ -142,7 +143,8 @@
                 </div>
                 <div class="form-group">
                     <label for="use">用途類別：</label>
-                    <select id="use">
+                    <select id="use" required>
+                        <option value="">請選擇用途類別</option>
                         <option value="Material Cost 材料主體">Material Cost 材料主體 ex.鋁板、鋼棒</option>
                         <option value="Process Cost 加工製程">Process Cost 加工製程 ex.委託加工費、運費</option>
                         <option value="Fastener Cost 緊固件">Fastener Cost 緊固件 ex.螺絲、螺帽</option>
@@ -151,17 +153,17 @@
                 </div>
                 <div class="form-group">
                     <label for="amount">預計數量（請標註規格）* 預計單價（按照官網售價）：</label>
-                    <input type="text" id="amount">
+                    <input type="text" id="amount" required>
                 </div>
                 <div class="form-group">
                     <label for="total-cost">預計總價（預計數量*預計單價）：</label>
-                    <input type="number" id="total-cost">
+                    <input type="number" id="total-cost" required>
                 </div>
                 <div class="form-group">
                     <label for="import">進口物品</label>
                     <select id="import">
-                        <option value="Yes">是</option>
-                        <option value="No">否</option>
+                        <option value="是">是</option>
+                        <option value="否">否</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -200,6 +202,7 @@
                     <div class="form-group">
                         <label for="edit-system-type">系統類別：</label>
                         <select id="edit-system-type" required>
+                            <option value="">請選擇系統類別</option>
                             <option value="Frame & Body 車架">1. Frame & Body 車架</option>
                             <option value="Miscellaneous, Fit & Finish 車輛塗裝">2. Miscellaneous, Fit & Finish 車輛塗裝</option>
                             <option value="Brake System 煞車系統">3. Brake System 煞車系統</option>
@@ -214,6 +217,7 @@
                     <div class="form-group">
                         <label for="edit-use">用途類別：</label>
                         <select id="edit-use" required>
+                            <option value="">請選擇用途類別</option>
                             <option value="Material Cost 材料主體">Material Cost 材料主體 ex.鋁板、鋼棒</option>
                             <option value="Process Cost 加工製程">Process Cost 加工製程 ex.委託加工費、運費</option>
                             <option value="Fastener Cost 緊固件">Fastener Cost 緊固件 ex.螺絲、螺帽</option>

@@ -51,15 +51,20 @@ function login() {
         })
         .then(res => res.json())
         .then(data => {
-            if (data.token) {
-                localStorage.setItem("token", data.token);
+            if (data.success) {
+                // 儲存用戶資訊（不再需要token）
                 localStorage.setItem("role", data.role);
-                localStorage.setItem("username", username);
+                localStorage.setItem("username", data.username);
+                alert(data.message);
+
+                // 切換顯示介面
                 document.getElementById("login-form").style.display = "none";
                 document.getElementById("register-section").style.display = "none";
                 document.getElementById("function-section").style.display = "block";
+
                 // 載入用戶資料
                 loadUserInfo();
+
                 // 根據用戶角色更新功能按鈕
                 const approveButton = document.querySelector('button[onclick="approve()"]');
                 if (data.role !== "finance") {
@@ -80,7 +85,6 @@ function login() {
 
 // **📌 登出**
 function logout() {
-    localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("username");
     // 清空用戶資料顯示

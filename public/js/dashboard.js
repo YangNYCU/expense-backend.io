@@ -16,7 +16,7 @@ function showDashboard() {
 function loadDashboardData() {
     fetch(`${apiUrl}/stats`, {
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+                
             }
         })
         .then(res => {

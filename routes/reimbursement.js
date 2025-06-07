@@ -1,5 +1,4 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
 const { saveData } = require('../utils/db');
 const db = require('../models/database');
 
@@ -9,7 +8,7 @@ const router = express.Router();
 //更新學校報帳狀態 API
 //端點：PUT /api/reimbursements
 
-router.put('/', authenticateToken, async(req, res) => {
+router.put('/', async(req, res) => {
     const { purchaseIds, reimbursementId } = req.body;
     if (!Array.isArray(purchaseIds) || purchaseIds.length === 0 || purchaseIds.length > 5) {
         return res.status(400).json({ message: '請選擇1-5筆待報帳的記錄' });
@@ -42,7 +41,7 @@ router.put('/', authenticateToken, async(req, res) => {
 //更新學校報帳狀態 API
 //端點：PUT /api/reimbursements/:serial_number/reimbursement-status
 
-router.put('/:serial_number/reimbursement-status', authenticateToken, async(req, res) => {
+router.put('/:serial_number/reimbursement-status', async(req, res) => {
     const serial_number = req.params.serial_number;
     const { status, repayment_date } = req.body;
     const validStatuses = ['無發票', '未送出', '已送出', '學校匯款', '已還款'];
@@ -65,7 +64,7 @@ router.put('/:serial_number/reimbursement-status', authenticateToken, async(req,
 //獲取已向學校報帳列表 API
 //端點：GET /api/reimbursements
 
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', (req, res) => {
     try {
         const reimbursementList = db.purchases
             .filter(p => ['已送出', '學校匯款', '已還款'].includes(p.school_reimbursement_status))

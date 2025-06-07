@@ -17,11 +17,7 @@ function showTab(tabId) {
 
 // **📌 加載審核列表**
 function loadApprovals() {
-    fetch(`${apiUrl}/purchase?sort=serial_number`, { // 添加排序參數
-            headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-        })
+    fetch(`${apiUrl}/purchase?sort=serial_number`)
         .then(res => res.json())
         .then(data => {
             // 確保資料按照 serial_number 排序
@@ -42,8 +38,7 @@ function updateApprovalStatus(selectElement, purchaseSerialNumber) {
     fetch(`${apiUrl}/purchase/${serial_number}/status`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({ status })
         })
@@ -70,11 +65,7 @@ function updateApprovalStatus(selectElement, purchaseSerialNumber) {
 
 // 載入待審核成員
 function loadPendingMembers() {
-    fetch(`${apiUrl}/users/pending`, {
-            headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-        })
+    fetch(`${apiUrl}/users/pending`)
         .then(res => {
             if (!res.ok) {
                 return res.json().then(data => {
@@ -114,8 +105,7 @@ function approveMember(userId, status) {
     fetch(`${apiUrl}/users/${userId}/approve`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({ status })
         })
@@ -142,13 +132,7 @@ function approveMember(userId, status) {
 }
 
 function loadUsers() {
-    fetch(`${apiUrl}/users`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-        })
+    fetch(`${apiUrl}/users`)
         .then(res => {
             if (!res.ok) {
                 return res.text().then(text => {
@@ -193,10 +177,7 @@ function deleteUser(userId, username) {
     }
 
     fetch(`${apiUrl}/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${localStorage.getItem("token")}`
-        }
+        method: 'DELETE'
     })
     .then(res => {
         if (!res.ok) {
@@ -297,11 +278,10 @@ function submitReimbursement() {
         alert('請至少選擇一筆記錄');
         return;
     }
-    fetch(`${apiUrl}/purchase/reimbursement`, {
+    fetch(`${apiUrl}/reimbursements`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem("token")}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 purchaseIds: Array.from(selectedPurchases),
@@ -333,11 +313,10 @@ function updateReimbursementStatus(selectElement, serial_number) {
     const row = selectElement.closest('tr');
     const repaymentDateInput = row.querySelector('input[type="date"]');
     const repayment_date = repaymentDateInput.value;
-    fetch(`${apiUrl}/purchase/${serial_number}/reimbursement-status`, {
+    fetch(`${apiUrl}/reimbursements/${serial_number}/reimbursement-status`, {
         method: 'PUT',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem("token")}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
             status,
@@ -369,13 +348,7 @@ function openRepaymentModal() {
 }
 
 function loadRepayments() {
-    fetch(`${apiUrl}/reimbursements`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem("token")}`
-        }
-    })
+    fetch(`${apiUrl}/reimbursements`)
     .then(res => {
         if (!res.ok) {
             return res.text().then(text => {

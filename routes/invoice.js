@@ -2,7 +2,6 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticateToken } = require('../middleware/auth');
 const { saveData } = require('../utils/db');
 const { UPLOADS_ROOT } = require('../config/config');
 const db = require('../models/database');
@@ -29,7 +28,7 @@ const upload = multer({
 //上傳發票 API
 //端點：POST /api/invoice/upload/:serial_number
 
-router.post('/upload/:serial_number', authenticateToken, upload.array('files'), (req, res) => {
+router.post('/upload/:serial_number', upload.array('files'), (req, res) => {
     try {
         const { serial_number } = req.params;
         const purchase = db.purchases.find(p => p.serial_number === serial_number);
@@ -48,7 +47,7 @@ router.post('/upload/:serial_number', authenticateToken, upload.array('files'), 
 //更新發票資訊 API
 //端點：PUT /api/invoice/update/:id
 
-router.put('/update/:id', authenticateToken, async(req, res) => {
+router.put('/update/:id', async(req, res) => {
     const id = parseInt(req.params.id, 10);
     const { purchaseDate, actualPrice } = req.body;
     if (!purchaseDate && !actualPrice) {
@@ -71,7 +70,7 @@ router.put('/update/:id', authenticateToken, async(req, res) => {
 //刪除發票照片 API
 //端點：DELETE /api/invoice/delete/:serial_number/:filename
 
-router.delete('/delete/:serial_number/:filename', authenticateToken, async(req, res) => {
+router.delete('/delete/:serial_number/:filename', async(req, res) => {
     try {
         console.log(req.params);
         const { serial_number, filename } = req.params;

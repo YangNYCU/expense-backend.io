@@ -21,22 +21,35 @@ function closePurchaseModal() {
 
 // 提交新採購申請
 function submitPurchase() {
+    // 表單驗證
+    const team = document.getElementById("team").value;
+    const purchase_desc = document.getElementById("purchase-desc").value;
+    const system_type = document.getElementById("system-type").value;
+    const use = document.getElementById("use").value;
+    const amount = document.getElementById("amount").value;
+    const total_cost = document.getElementById("total-cost").value;
+    const purchase_import = document.getElementById("import").value;
+    const purchase_note = document.getElementById("purchase-note").value;
+    const username = localStorage.getItem('username');
     const purchaseData = {
-        team: document.getElementById("team").value,
-        purchase_desc: document.getElementById("purchase-desc").value,
-        system_type: document.getElementById("system-type").value,
-        use: document.getElementById("use").value,
-        amount: document.getElementById("amount").value,
-        total_cost: document.getElementById("total-cost").value,
-        purchase_import: document.getElementById("import").value,
-        purchase_note: document.getElementById("purchase-note").value
+        team,
+        purchase_desc,
+        system_type,
+        use,
+        amount,
+        total_cost,
+        purchase_import,
+        purchase_note,
+        username
     };
+
+    console.log('提交的採購資料:', purchaseData); // 除錯用
 
     fetch(`${apiUrl}/purchase`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+
             },
             body: JSON.stringify(purchaseData)
         })
@@ -50,6 +63,16 @@ function submitPurchase() {
         })
         .then(data => {
             alert("採購申請已提交！");
+            // 清空表單，重置到預設值
+            document.getElementById("team").value = "車架";
+            document.getElementById("purchase-desc").value = "";
+            document.getElementById("system-type").value = ""; // 重置為空值
+            document.getElementById("use").value = ""; // 重置為空值
+            document.getElementById("amount").value = "";
+            document.getElementById("total-cost").value = "";
+            document.getElementById("import").value = "是";
+            document.getElementById("purchase-note").value = "";
+
             closePurchaseModal();
             loadAndRenderData("purchase-list-purchase");
         })
@@ -70,7 +93,7 @@ function openEditModal() {
     // 獲取當前用戶的採購申請列表
     fetch(`${apiUrl}/purchase`, {
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+
             }
         })
         .then(res => res.json())
@@ -125,6 +148,7 @@ document.getElementById("edit-serial").addEventListener("change", function() {
 // 提交修改
 function submitEdit() {
     const purchaseId = document.getElementById("edit-serial").value;
+
     const updatedData = {
         id: purchaseId, // 添加 id
         team: document.getElementById("edit-team").value,
@@ -143,7 +167,7 @@ function submitEdit() {
             method: "POST", // 改用 POST 方法
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+
             },
             body: JSON.stringify(updatedData)
         })
@@ -181,7 +205,7 @@ function deletePurchase(id) {
     fetch(`${apiUrl}/purchase/${id}`, {
             method: "DELETE",
             headers: {
-                "Authorization": `Bearer ${localStorage.getItem("token")}`
+
             }
         })
         .then(res => {
